@@ -5,7 +5,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, Platform } from 'react-native';
 
 import { COLORS } from './utils/constants';
 import HomeScreen from './screens/HomeScreen';
@@ -134,8 +134,8 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
         borderTopColor: COLORS.border,
         borderTopWidth: 1,
-        height: 60,
-        paddingBottom: 8,
+        height: Platform.OS === 'android' ? 80 : 70,
+        paddingBottom: Platform.OS === 'android' ? 20 : 8,
         paddingTop: 8,
     },
     tabLabel: {
