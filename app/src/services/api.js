@@ -188,6 +188,23 @@ export const getScanHistory = async () => {
 // Helper: Simulate delay
 const simulateDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Monitor all installed apps and log their permissions
+ * Useful for debugging and security analysis
+ * @returns {Promise<string>} - Status message
+ */
+export const monitorAllApps = async () => {
+    try {
+        if (Platform.OS === 'android' && BehaviorModule) {
+            return await BehaviorModule.monitorAllApps();
+        }
+        return 'Monitoring not available on this platform';
+    } catch (error) {
+        console.error('Monitor All Apps Error:', error);
+        throw error;
+    }
+};
+
 // Helper: Get mock scan result
 const getMockScanResult = (fileType) => {
     const mockResponses = {

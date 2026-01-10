@@ -91,4 +91,18 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             promise.reject("ERROR", "Failed to get permissions: ${e.message}")
         }
     }
+
+    /**
+     * Monitor all installed apps and log their permissions
+     * Called from React Native: BehaviorModule.monitorAllApps()
+     */
+    @ReactMethod
+    fun monitorAllApps(promise: Promise) {
+        try {
+            monitor.monitorAppBehavior()
+            promise.resolve("Monitoring complete - check logcat for results")
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to monitor apps: ${e.message}")
+        }
+    }
 }

@@ -156,4 +156,18 @@ class BehaviorMonitor(private val context: Context) {
             else -> "$bytes B"
         }
     }
+
+    /**
+     * Monitor behavior of all installed apps
+     * Logs app names and permissions for security analysis
+     */
+    fun monitorAppBehavior() {
+        val apps = listInstalledApps()
+        for (app in apps) {
+            val packageName = app["packageName"] as String
+            val appName = app["fileName"] as String
+            val perms = getAppPermissions(packageName)
+            Log.d(TAG, "App: $appName ($packageName), Permissions: $perms")
+        }
+    }
 }
