@@ -122,10 +122,7 @@ const SettingsScreen = () => {
                 {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>
-                        © 2024 Android Sandbox
-                    </Text>
-                    <Text style={styles.footerSubtext}>
-                        Security Analysis Platform
+                        Built with ❤️ by Skanda, Pratham and Deekshith
                     </Text>
                 </View>
             </ScrollView>
