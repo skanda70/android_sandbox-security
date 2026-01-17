@@ -3,8 +3,30 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, FILE_TYPE_ICONS, ACTION_STATUS } from '../utils/constants';
 import RiskBadge from './RiskBadge';
+
+/**
+ * Format timestamp to relative time (e.g., "2 min ago")
+ */
+const formatRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+
+    const now = Date.now();
+    const scannedTime = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+    const diffMs = now - scannedTime;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 60) return 'Just now';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    if (diffHour < 24) return `${diffHour} hr ago`;
+    if (diffDay < 7) return `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
+    return new Date(scannedTime).toLocaleDateString();
+};
 
 /**
  * Reusable file display card component
@@ -33,6 +55,9 @@ const FileCard = ({ file, onPress, style }) => {
         }
     };
 
+    // Get relative time for last scan
+    const lastScanTime = formatRelativeTime(file.scannedAt);
+
     return (
         <TouchableOpacity
             style={[styles.card, style]}
@@ -41,7 +66,11 @@ const FileCard = ({ file, onPress, style }) => {
         >
             {/* File Icon */}
             <View style={styles.iconContainer}>
-                <Text style={styles.icon}>{getFileIcon(file.fileType)}</Text>
+                <MaterialCommunityIcons
+                    name={getFileIcon(file.fileType)}
+                    size={24}
+                    color={COLORS.secondary}
+                />
             </View>
 
             {/* File Details */}
@@ -52,14 +81,23 @@ const FileCard = ({ file, onPress, style }) => {
                 <Text style={styles.fileType}>
                     {file.fileType.toUpperCase()} • {file.fileSize}
                 </Text>
+                {lastScanTime ? (
+                    <View style={styles.scanTimeRow}>
+                        <MaterialCommunityIcons name="clock-outline" size={11} color={COLORS.textMuted} />
+                        <Text style={styles.scanTime}>{lastScanTime}</Text>
+                    </View>
+                ) : null}
             </View>
 
             {/* Risk and Action */}
             <View style={styles.status}>
                 <RiskBadge risk={file.risk} />
-                <Text style={[styles.action, { color: getActionColor(file.action) }]}>
-                    {file.action}
-                </Text>
+                <View style={styles.actionRow}>
+                    <Text style={[styles.action, { color: getActionColor(file.action) }]}>
+                        {file.action}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textMuted} />
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -85,9 +123,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: 12,
     },
-    icon: {
-        fontSize: 22,
-    },
     details: {
         flex: 1,
         marginRight: 12,
@@ -102,6 +137,16 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: COLORS.textSecondary,
     },
+    scanTimeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    scanTime: {
+        fontSize: 10,
+        color: COLORS.textMuted,
+        marginLeft: 4,
+    },
     status: {
         alignItems: 'flex-end',
     },
@@ -110,6 +155,11 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         marginTop: 6,
         letterSpacing: 0.5,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
     },
 });
 

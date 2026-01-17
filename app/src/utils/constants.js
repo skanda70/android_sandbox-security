@@ -6,27 +6,27 @@ export const COLORS = {
   primary: '#1E3A5F',
   primaryLight: '#2E5077',
   secondary: '#3498DB',
-  
+
   // Background colors
   background: '#0D1B2A',
   surface: '#1B2838',
   card: '#243447',
-  
+
   // Text colors
   textPrimary: '#FFFFFF',
   textSecondary: '#B0BEC5',
   textMuted: '#78909C',
-  
+
   // Risk level colors (high contrast)
   riskLow: '#4CAF50',      // Green
   riskMedium: '#FFC107',   // Yellow/Amber
   riskHigh: '#F44336',     // Red
-  
+
   // Action status colors
   actionAllowed: '#4CAF50',
   actionRestricted: '#FF9800',
   actionBlocked: '#F44336',
-  
+
   // Border and divider
   border: '#37474F',
   divider: '#455A64',
@@ -46,14 +46,14 @@ export const ACTION_STATUS = {
   BLOCKED: 'BLOCKED',
 };
 
-// File type icons (using emoji for simplicity)
+// File type icons (Material Community Icons)
 export const FILE_TYPE_ICONS = {
-  apk: '📦',
-  pdf: '📄',
-  doc: '📝',
-  exe: '⚙️',
-  zip: '🗜️',
-  unknown: '📁',
+  apk: 'android',
+  pdf: 'file-pdf-box',
+  doc: 'file-document-outline',
+  exe: 'application-cog',
+  zip: 'folder-zip-outline',
+  unknown: 'file-question',
 };
 
 // App configuration

@@ -3,6 +3,30 @@
   "reactNativePath": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native",
   "reactNativeVersion": "0.83",
   "dependencies": {
+    "react-native-linear-gradient": {
+      "root": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-linear-gradient",
+      "name": "react-native-linear-gradient",
+      "platforms": {
+        "ios": {
+          "podspecPath": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-linear-gradient/BVLinearGradient.podspec",
+          "version": "2.8.3",
+          "configurations": [],
+          "scriptPhases": []
+        },
+        "android": {
+          "sourceDir": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-linear-gradient/android",
+          "packageImportPath": "import com.BV.LinearGradient.LinearGradientPackage;",
+          "packageInstance": "new LinearGradientPackage()",
+          "buildTypes": [],
+          "componentDescriptors": [],
+          "cmakeListsPath": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-linear-gradient/android/build/generated/source/codegen/jni/CMakeLists.txt",
+          "cxxModuleCMakeListsModuleName": null,
+          "cxxModuleCMakeListsPath": null,
+          "cxxModuleHeaderName": null,
+          "isPureCxxDependency": false
+        }
+      }
+    },
     "react-native-safe-area-context": {
       "root": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-safe-area-context",
       "name": "react-native-safe-area-context",
@@ -63,6 +87,31 @@
             "RNSSafeAreaViewComponentDescriptor"
           ],
           "cmakeListsPath": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt",
+          "cxxModuleCMakeListsModuleName": null,
+          "cxxModuleCMakeListsPath": null,
+          "cxxModuleHeaderName": null,
+          "isPureCxxDependency": false
+        }
+      }
+    },
+    "react-native-vector-icons": {
+      "root": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-vector-icons",
+      "name": "react-native-vector-icons",
+      "platforms": {
+        "ios": {
+          "podspecPath": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-vector-icons/RNVectorIcons.podspec",
+          "version": "10.3.0",
+          "configurations": [],
+          "scriptPhases": []
+        },
+        "android": {
+          "sourceDir": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-vector-icons/android",
+          "packageImportPath": "import com.oblador.vectoricons.VectorIconsPackage;",
+          "packageInstance": "new VectorIconsPackage()",
+          "buildTypes": [],
+          "libraryName": "RNVectorIconsSpec",
+          "componentDescriptors": [],
+          "cmakeListsPath": "/Users/deekshithsk/Desktop/frontend/app/node_modules/react-native-vector-icons/android/build/generated/source/codegen/jni/CMakeLists.txt",
           "cxxModuleCMakeListsModuleName": null,
           "cxxModuleCMakeListsPath": null,
           "cxxModuleHeaderName": null,

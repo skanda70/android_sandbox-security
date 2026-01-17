@@ -122,7 +122,7 @@ const SettingsScreen = () => {
                 {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>
-                        Built with ❤️ by Skanda, Pratham and Deekshith
+                        Built with ❤️ by Skanda, Deekshith and Pratham
                     </Text>
                 </View>
             </ScrollView>

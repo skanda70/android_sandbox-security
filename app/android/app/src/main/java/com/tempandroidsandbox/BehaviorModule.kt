@@ -11,6 +11,8 @@ import com.facebook.react.bridge.WritableMap
 class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     private val monitor = BehaviorMonitor(reactContext)
+    private val networkAnalyzer = NetworkAnalyzer(reactContext)
+    private val malwareDetector = MalwareDetector(reactContext)
 
     override fun getName(): String {
         return "BehaviorModule"
@@ -105,4 +107,149 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             promise.reject("ERROR", "Failed to monitor apps: ${e.message}")
         }
     }
+
+    /**
+     * Get detailed permissions with risk levels and descriptions
+     * Called from React Native: BehaviorModule.getDetailedPermissions(packageName)
+     */
+    @ReactMethod
+    fun getDetailedPermissions(packageName: String, promise: Promise) {
+        try {
+            val permissions = monitor.getDetailedPermissions(packageName)
+            val result: WritableArray = Arguments.createArray()
+            
+            permissions.forEach { perm ->
+                val permMap: WritableMap = Arguments.createMap()
+                permMap.putString("permission", perm["permission"] as String)
+                permMap.putString("shortName", perm["shortName"] as String)
+                permMap.putString("riskLevel", perm["riskLevel"] as String)
+                permMap.putString("category", perm["category"] as String)
+                permMap.putString("description", perm["description"] as String)
+                permMap.putString("icon", perm["icon"] as String)
+                result.pushMap(permMap)
+            }
+            
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to get detailed permissions: ${e.message}")
+        }
+    }
+
+    /**
+     * Get network analysis for an app
+     * Called from React Native: BehaviorModule.getNetworkAnalysis(packageName)
+     */
+    @ReactMethod
+    fun getNetworkAnalysis(packageName: String, promise: Promise) {
+        try {
+            val analysis = networkAnalyzer.analyzeApp(packageName)
+            val result: WritableMap = Arguments.createMap()
+            
+            result.putBoolean("hasInternet", analysis["hasInternet"] as Boolean)
+            result.putInt("networkPermissionCount", analysis["networkPermissionCount"] as Int)
+            result.putInt("dataExfilPermissionCount", analysis["dataExfilPermissionCount"] as Int)
+            result.putInt("exfilRiskScore", analysis["exfilRiskScore"] as Int)
+            result.putString("riskLevel", analysis["riskLevel"] as String)
+            result.putBoolean("usesCleartext", analysis["usesCleartext"] as Boolean)
+            result.putBoolean("canAccessWifi", analysis["canAccessWifi"] as Boolean)
+            result.putBoolean("canChangeNetwork", analysis["canChangeNetwork"] as Boolean)
+            
+            // Network capabilities array
+            val capabilities: WritableArray = Arguments.createArray()
+            @Suppress("UNCHECKED_CAST")
+            (analysis["networkCapabilities"] as List<String>).forEach { cap ->
+                capabilities.pushString(cap)
+            }
+            result.putArray("networkCapabilities", capabilities)
+            
+            // Data exfil permissions array
+            val exfilPerms: WritableArray = Arguments.createArray()
+            @Suppress("UNCHECKED_CAST")
+            (analysis["dataExfilPermissions"] as List<String>).forEach { perm ->
+                exfilPerms.pushString(perm)
+            }
+            result.putArray("dataExfilPermissions", exfilPerms)
+            
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to get network analysis: ${e.message}")
+        }
+    }
+
+    /**
+     * Get malware analysis for an app
+     * Called from React Native: BehaviorModule.getMalwareAnalysis(packageName)
+     */
+    @ReactMethod
+    fun getMalwareAnalysis(packageName: String, promise: Promise) {
+        try {
+            val analysis = malwareDetector.analyzeApp(packageName)
+            val result: WritableMap = Arguments.createMap()
+            
+            result.putString("packageName", analysis["packageName"] as String)
+            result.putString("appName", analysis["appName"] as String)
+            result.putString("threatLevel", analysis["threatLevel"] as String)
+            result.putInt("threatScore", analysis["threatScore"] as Int)
+            result.putBoolean("suspiciousNameMatch", analysis["suspiciousNameMatch"] as Boolean)
+            result.putInt("matchedComboCount", analysis["matchedComboCount"] as Int)
+            result.putInt("suspiciousPermCount", analysis["suspiciousPermCount"] as Int)
+            result.putInt("indicatorCount", analysis["indicatorCount"] as Int)
+            result.putBoolean("isSafe", analysis["isSafe"] as Boolean)
+            result.putDouble("scanTimestamp", (analysis["scanTimestamp"] as Long).toDouble())
+            
+            // Indicators array
+            val indicators: WritableArray = Arguments.createArray()
+            @Suppress("UNCHECKED_CAST")
+            (analysis["indicators"] as List<String>).forEach { ind ->
+                indicators.pushString(ind)
+            }
+            result.putArray("indicators", indicators)
+            
+            // Suspicious permissions array
+            val suspPerms: WritableArray = Arguments.createArray()
+            @Suppress("UNCHECKED_CAST")
+            (analysis["suspiciousPermissions"] as List<String>).forEach { perm ->
+                suspPerms.pushString(perm)
+            }
+            result.putArray("suspiciousPermissions", suspPerms)
+            
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to get malware analysis: ${e.message}")
+        }
+    }
+
+    /**
+     * Get full app details
+     * Called from React Native: BehaviorModule.getAppFullDetails(packageName)
+     */
+    @ReactMethod
+    fun getAppFullDetails(packageName: String, promise: Promise) {
+        try {
+            val details = monitor.getAppFullDetails(packageName)
+            val result: WritableMap = Arguments.createMap()
+            
+            result.putString("packageName", details["packageName"] as String)
+            result.putString("appName", details["appName"] as String)
+            
+            if (details.containsKey("error")) {
+                result.putString("error", details["error"] as String)
+            } else {
+                result.putString("versionName", details["versionName"] as String)
+                result.putDouble("versionCode", (details["versionCode"] as Long).toDouble())
+                result.putString("fileSize", details["fileSize"] as String)
+                result.putDouble("installTime", (details["installTime"] as Long).toDouble())
+                result.putDouble("updateTime", (details["updateTime"] as Long).toDouble())
+                result.putBoolean("isSystemApp", details["isSystemApp"] as Boolean)
+                result.putInt("targetSdk", details["targetSdk"] as Int)
+                result.putInt("minSdk", details["minSdk"] as Int)
+                result.putString("sourceDir", details["sourceDir"] as String)
+            }
+            
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to get app details: ${e.message}")
+        }
+    }
 }
+

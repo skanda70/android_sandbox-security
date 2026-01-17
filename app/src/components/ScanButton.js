@@ -3,6 +3,8 @@
 
 import React from 'react';
 import { TouchableOpacity, Text, View, StyleSheet, ActivityIndicator } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../utils/constants';
 
 /**
@@ -17,54 +19,51 @@ import { COLORS } from '../utils/constants';
 const ScanButton = ({ onPress, label = 'Start Scan', loading = false, disabled = false, style }) => {
     return (
         <TouchableOpacity
-            style={[
-                styles.button,
-                disabled && styles.buttonDisabled,
-                style,
-            ]}
+            style={[styles.container, style]}
             onPress={onPress}
             disabled={disabled || loading}
             activeOpacity={0.8}
         >
-            {loading ? (
-                <ActivityIndicator color={COLORS.textPrimary} size="small" />
-            ) : (
-                <>
-                    {/* Shield Icon */}
-                    <View style={styles.iconContainer}>
-                        <Text style={styles.icon}>🛡️</Text>
-                    </View>
-                    <Text style={styles.label}>{label}</Text>
-                </>
-            )}
+            <LinearGradient
+                colors={disabled ? [COLORS.textMuted, COLORS.textMuted] : [COLORS.secondary, '#2980B9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradient}
+            >
+                {loading ? (
+                    <ActivityIndicator color={COLORS.textPrimary} size="small" />
+                ) : (
+                    <>
+                        <View style={styles.iconContainer}>
+                            <MaterialCommunityIcons name="shield-check" size={24} color={COLORS.textPrimary} />
+                        </View>
+                        <Text style={styles.label}>{label}</Text>
+                    </>
+                )}
+            </LinearGradient>
         </TouchableOpacity>
     );
 };
 
 const styles = StyleSheet.create({
-    button: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: COLORS.secondary,
-        paddingVertical: 18,
-        paddingHorizontal: 32,
+    container: {
         borderRadius: 16,
-        elevation: 4,
+        elevation: 8,
         shadowColor: COLORS.secondary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
     },
-    buttonDisabled: {
-        backgroundColor: COLORS.textMuted,
-        opacity: 0.6,
+    gradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 18,
+        paddingHorizontal: 32,
+        borderRadius: 16,
     },
     iconContainer: {
         marginRight: 10,
-    },
-    icon: {
-        fontSize: 24,
     },
     label: {
         fontSize: 18,

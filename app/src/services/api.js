@@ -205,6 +205,66 @@ export const monitorAllApps = async () => {
     }
 };
 
+/**
+ * Get detailed permissions for an app with risk levels and descriptions
+ * @param {string} packageName - Package name to analyze
+ * @returns {Promise<Array>} - Array of permission objects
+ */
+export const getDetailedPermissions = async (packageName) => {
+    try {
+        if (Platform.OS === 'android' && BehaviorModule) {
+            const permissions = await BehaviorModule.getDetailedPermissions(packageName);
+            return permissions;
+        }
+        // Mock permissions for non-Android
+        return getMockPermissions();
+    } catch (error) {
+        console.error('Get Detailed Permissions Error:', error);
+        return getMockPermissions();
+    }
+};
+
+/**
+ * Get malware analysis for an app
+ * @param {string} packageName - Package name to analyze
+ * @returns {Promise<Object>} - Malware analysis result
+ */
+export const getMalwareAnalysis = async (packageName) => {
+    try {
+        if (Platform.OS === 'android' && BehaviorModule) {
+            const analysis = await BehaviorModule.getMalwareAnalysis(packageName);
+            return analysis;
+        }
+        // Mock malware analysis for non-Android
+        return getMockMalwareAnalysis();
+    } catch (error) {
+        console.error('Get Malware Analysis Error:', error);
+        return getMockMalwareAnalysis();
+    }
+};
+
+// Helper: Get mock permissions
+const getMockPermissions = () => [
+    { permission: 'android.permission.CAMERA', shortName: 'Camera', riskLevel: 'HIGH', category: 'Privacy', description: 'Access device camera', icon: 'camera' },
+    { permission: 'android.permission.LOCATION', shortName: 'Location', riskLevel: 'HIGH', category: 'Privacy', description: 'Access device location', icon: 'map-marker' },
+    { permission: 'android.permission.INTERNET', shortName: 'Internet', riskLevel: 'LOW', category: 'Network', description: 'Access internet', icon: 'web' },
+];
+
+// Helper: Get mock malware analysis
+const getMockMalwareAnalysis = () => ({
+    packageName: 'com.example.app',
+    appName: 'Sample App',
+    threatLevel: 'LOW',
+    threatScore: 15,
+    suspiciousNameMatch: false,
+    matchedComboCount: 0,
+    suspiciousPermCount: 1,
+    indicatorCount: 0,
+    isSafe: true,
+    indicators: [],
+    suspiciousPermissions: [],
+});
+
 // Helper: Get mock scan result
 const getMockScanResult = (fileType) => {
     const mockResponses = {

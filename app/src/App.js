@@ -6,6 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, View, StyleSheet, Platform } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { COLORS } from './utils/constants';
 import HomeScreen from './screens/HomeScreen';
@@ -21,11 +22,9 @@ const Stack = createNativeStackNavigator();
  * Tab icon component
  * Displays emoji icon with color based on focus state
  */
-const TabIcon = ({ icon, focused }) => (
-    <View style={styles.tabIconContainer}>
-        <Text style={[styles.tabIcon, focused && styles.tabIconFocused]}>
-            {icon}
-        </Text>
+const TabIcon = ({ icon, color, size, focused }) => (
+    <View style={[styles.tabIconContainer, focused && styles.tabIconContainerFocused]}>
+        <MaterialCommunityIcons name={icon} size={size} color={color} />
     </View>
 );
 
@@ -96,21 +95,27 @@ const TabNavigator = () => {
                 name="Home"
                 component={HomeStack}
                 options={{
-                    tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} />,
+                    tabBarIcon: ({ color, size, focused }) => (
+                        <TabIcon icon={focused ? "home" : "home-outline"} color={color} size={size} focused={focused} />
+                    ),
                 }}
             />
             <Tab.Screen
                 name="History"
                 component={HistoryStack}
                 options={{
-                    tabBarIcon: ({ focused }) => <TabIcon icon="📜" focused={focused} />,
+                    tabBarIcon: ({ color, size, focused }) => (
+                        <TabIcon icon={focused ? "clipboard-text" : "clipboard-text-outline"} color={color} size={size} focused={focused} />
+                    ),
                 }}
             />
             <Tab.Screen
                 name="Settings"
                 component={SettingsScreen}
                 options={{
-                    tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} />,
+                    tabBarIcon: ({ color, size, focused }) => (
+                        <TabIcon icon={focused ? "cog" : "cog-outline"} color={color} size={size} focused={focused} />
+                    ),
                 }}
             />
         </Tab.Navigator>
@@ -145,13 +150,11 @@ const styles = StyleSheet.create({
     tabIconContainer: {
         alignItems: 'center',
         justifyContent: 'center',
+        padding: 5,
+        borderRadius: 20,
     },
-    tabIcon: {
-        fontSize: 22,
-        opacity: 0.6,
-    },
-    tabIconFocused: {
-        opacity: 1,
+    tabIconContainerFocused: {
+        backgroundColor: 'rgba(52, 152, 219, 0.1)',
     },
 });
 

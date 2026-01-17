@@ -9,11 +9,16 @@ import {
     ScrollView,
     SafeAreaView,
     StatusBar,
+    Image,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../utils/constants';
 import { getRecentFiles, scanFile } from '../services/api';
 import FileCard from '../components/FileCard';
 import ScanButton from '../components/ScanButton';
+
+// Import the logo
+const AppLogo = require('../assets/logo.png');
 
 /**
  * Home Screen - Main landing page
@@ -115,8 +120,14 @@ const HomeScreen = ({ navigation }) => {
             >
                 {/* Header Section */}
                 <View style={styles.header}>
-                    <Text style={styles.appIcon}>🛡️</Text>
-                    <Text style={styles.title}>Android Sandbox</Text>
+                    <View style={styles.logoContainer}>
+                        <Image
+                            source={AppLogo}
+                            style={styles.appLogo}
+                            resizeMode="contain"
+                        />
+                    </View>
+                    <Text style={styles.title}>Hexlab</Text>
                     <Text style={styles.subtitle}>Security Analysis Platform</Text>
                 </View>
 
@@ -125,10 +136,10 @@ const HomeScreen = ({ navigation }) => {
                     <ScanButton
                         onPress={handleScan}
                         loading={scanning}
-                        label="Start Scan"
+                        label="Start Security Scan"
                     />
                     <Text style={styles.scanHint}>
-                        Analyze files for security threats
+                        Analyze installed apps for permissions and threats
                     </Text>
                 </View>
 
@@ -142,10 +153,10 @@ const HomeScreen = ({ navigation }) => {
                         </View>
                     ) : recentFiles.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyIcon}>📁</Text>
+                            <MaterialCommunityIcons name="shield-search" size={60} color={COLORS.textMuted} style={styles.emptyIcon} />
                             <Text style={styles.emptyText}>No recent scans</Text>
                             <Text style={styles.emptyHint}>
-                                Tap "Start Scan" to analyze your first file
+                                Tap "Start Security Scan" to analyze your first app
                             </Text>
                         </View>
                     ) : (
@@ -180,9 +191,19 @@ const styles = StyleSheet.create({
         paddingTop: 50,
         paddingBottom: 20,
     },
-    appIcon: {
-        fontSize: 48,
+    logoContainer: {
+        width: 120,
+        height: 120,
         marginBottom: 12,
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 20,
+        transform: [{ rotate: '0deg' }],
+    },
+    appLogo: {
+        width: 280,
+        height: 280,
     },
     title: {
         fontSize: 28,
@@ -211,10 +232,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     sectionTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '700',
         color: COLORS.textPrimary,
-        marginBottom: 14,
+        marginBottom: 16,
+        marginLeft: 4,
     },
     loadingContainer: {
         alignItems: 'center',
@@ -234,8 +256,8 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
     },
     emptyIcon: {
-        fontSize: 40,
-        marginBottom: 12,
+        marginBottom: 16,
+        opacity: 0.5,
     },
     emptyText: {
         fontSize: 16,
