@@ -99,6 +99,7 @@ export const getRecentFiles = async () => {
                             confidence: analysis.confidence,
                             action: analysis.action,
                             scannedAt: new Date().toISOString(),
+                            iconBase64: app.iconBase64 || '',
                         };
                     }
                     return app;
@@ -147,6 +148,7 @@ export const getScanHistory = async () => {
                             confidence: analysis.confidence,
                             action: analysis.action,
                             scannedAt: new Date(Date.now() - index * 3600000).toISOString(),
+                            iconBase64: app.iconBase64 || '',
                         };
                     }
                     return app;

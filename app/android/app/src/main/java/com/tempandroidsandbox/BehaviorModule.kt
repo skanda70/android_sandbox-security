@@ -35,6 +35,8 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                 appMap.putString("packageName", app["packageName"] as String)
                 appMap.putString("fileType", app["fileType"] as String)
                 appMap.putString("fileSize", app["fileSize"] as String)
+                appMap.putBoolean("isSystemApp", app["isSystemApp"] as Boolean)
+                appMap.putString("iconBase64", app["iconBase64"] as String)
                 result.pushMap(appMap)
             }
             

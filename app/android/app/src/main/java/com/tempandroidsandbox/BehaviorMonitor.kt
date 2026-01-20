@@ -3,8 +3,13 @@ package com.tempandroidsandbox
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.util.Base64
 import android.util.Log
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 class BehaviorMonitor(private val context: Context) {
@@ -37,19 +42,22 @@ class BehaviorMonitor(private val context: Context) {
     }
 
     /**
-     * List all installed applications
+     * List all installed applications that have a launcher activity (launchable apps only)
      */
     fun listInstalledApps(): List<Map<String, Any>> {
         val pm: PackageManager = context.packageManager
-        val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         
-        return packages.filter { app ->
-            // Filter out system apps, show only user-installed apps
-            (app.flags and ApplicationInfo.FLAG_SYSTEM) == 0
-        }.map { app ->
-            val appName = pm.getApplicationLabel(app).toString()
+        // Get only apps with launcher activities (apps that appear in the home screen)
+        val launcherIntent = android.content.Intent(android.content.Intent.ACTION_MAIN, null)
+        launcherIntent.addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        val launcherApps = pm.queryIntentActivities(launcherIntent, 0)
+        
+        return launcherApps.map { resolveInfo ->
+            val app = resolveInfo.activityInfo.applicationInfo
+            val appName = resolveInfo.loadLabel(pm).toString()
             val packageName = app.packageName
             val sourceDir = app.sourceDir
+            val isSystemApp = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
             val fileSize = try {
                 val file = File(sourceDir)
                 formatFileSize(file.length())
@@ -57,14 +65,48 @@ class BehaviorMonitor(private val context: Context) {
                 "Unknown"
             }
             
+            // Get app icon as base64
+            val iconBase64 = try {
+                val drawable = resolveInfo.loadIcon(pm)
+                drawableToBase64(drawable)
+            } catch (e: Exception) {
+                ""
+            }
+            
             mapOf(
                 "id" to packageName,
                 "fileName" to appName,
                 "packageName" to packageName,
                 "fileType" to "apk",
-                "fileSize" to fileSize
+                "fileSize" to fileSize,
+                "isSystemApp" to isSystemApp,
+                "iconBase64" to iconBase64
             )
+        }.distinctBy { it["packageName"] } // Remove duplicates
+         .sortedBy { it["isSystemApp"] as Boolean } // User apps first, then system apps
+    }
+
+    /**
+     * Convert a Drawable to a Base64 encoded PNG string
+     */
+    private fun drawableToBase64(drawable: Drawable): String {
+        val bitmap = if (drawable is BitmapDrawable) {
+            drawable.bitmap
+        } else {
+            // Create bitmap from other drawable types
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bitmap
         }
+        
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 80, outputStream)
+        val byteArray = outputStream.toByteArray()
+        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
     }
 
     /**
@@ -82,44 +124,122 @@ class BehaviorMonitor(private val context: Context) {
     }
 
     /**
-     * Analyze app risk based on permissions
+     * Check for suspicious permission combinations that indicate potential malware
+     */
+    private fun checkSuspiciousPermissionCombos(
+        permissions: List<String>,
+        packageName: String,
+        appName: String
+    ): Boolean {
+        val hasInternet = permissions.any { it.contains("INTERNET") }
+        val hasSms = permissions.any { it.contains("SMS") }
+        val hasContacts = permissions.any { it.contains("CONTACTS") }
+        val hasCallLog = permissions.any { it.contains("CALL_LOG") }
+        val hasLocation = permissions.any { it.contains("LOCATION") }
+        val hasCamera = permissions.any { it.contains("CAMERA") }
+        val hasRecordAudio = permissions.any { it.contains("RECORD_AUDIO") }
+        
+        // Suspicious combo 1: SMS + Internet (often used for premium SMS fraud)
+        if (hasSms && hasInternet && !packageName.contains("messaging") && !packageName.contains("sms")) {
+            return true
+        }
+        
+        // Suspicious combo 2: Contacts + SMS + Internet (data exfiltration)
+        if (hasContacts && hasSms && hasInternet) {
+            return true
+        }
+        
+        // Suspicious combo 3: Call log + SMS + Internet (spyware indicator)
+        if (hasCallLog && hasSms && hasInternet) {
+            return true
+        }
+        
+        // Suspicious combo 4: Camera + Audio + Location + Contacts (surveillance app)
+        if (hasCamera && hasRecordAudio && hasLocation && hasContacts) {
+            // But not if it's a known social/communication app
+            val isSocialApp = appName.lowercase().let {
+                it.contains("whatsapp") || it.contains("telegram") || 
+                it.contains("messenger") || it.contains("zoom") ||
+                it.contains("meet") || it.contains("teams")
+            }
+            if (!isSocialApp) {
+                return true
+            }
+        }
+        
+        return false
+    }
+
+    /**
+     * Analyze app risk based on permissions with smart trust scoring
      */
     fun analyzeAppRisk(packageName: String): Map<String, Any> {
         val permissions = getAppPermissions(packageName)
         val pm: PackageManager = context.packageManager
         
-        // Count dangerous permissions
-        val highRiskCount = permissions.count { it in HIGH_RISK_PERMISSIONS }
-        val mediumRiskCount = permissions.count { it in MEDIUM_RISK_PERMISSIONS }
-        
-        // Calculate risk score (0-100)
-        val riskScore = minOf(100, (highRiskCount * 15) + (mediumRiskCount * 5))
-        
-        // Determine risk level
-        val riskLevel = when {
-            riskScore >= 50 -> "HIGH"
-            riskScore >= 25 -> "MEDIUM"
-            else -> "LOW"
-        }
-        
-        // Determine action
-        val action = when (riskLevel) {
-            "HIGH" -> "BLOCKED"
-            "MEDIUM" -> "RESTRICTED"
-            else -> "ALLOWED"
-        }
-        
-        // Calculate confidence (higher with more permissions analyzed)
-        val confidence = minOf(0.99, 0.70 + (permissions.size * 0.01))
-        
-        // Get app details
+        // Get app info
         val appInfo = try {
             pm.getApplicationInfo(packageName, 0)
         } catch (e: Exception) {
             null
         }
         
+        val isSystemApp = appInfo?.let { (it.flags and ApplicationInfo.FLAG_SYSTEM) != 0 } ?: false
         val appName = appInfo?.let { pm.getApplicationLabel(it).toString() } ?: packageName
+        
+        // Check if it's from a trusted source
+        val isTrustedPublisher = packageName.startsWith("com.google.") ||
+                                 packageName.startsWith("com.android.") ||
+                                 packageName.startsWith("com.sec.") ||      // Samsung
+                                 packageName.startsWith("com.samsung.") ||
+                                 packageName.startsWith("com.miui.") ||     // Xiaomi
+                                 packageName.startsWith("com.huawei.")      // Huawei
+        
+        // Count dangerous permissions
+        val highRiskCount = permissions.count { it in HIGH_RISK_PERMISSIONS }
+        val mediumRiskCount = permissions.count { it in MEDIUM_RISK_PERMISSIONS }
+        
+        // Trusted apps are always LOW risk - they have legitimate reasons for their permissions
+        val riskLevel: String
+        val riskScore: Int
+        
+        if (isSystemApp || isTrustedPublisher) {
+            // System apps and trusted publishers are inherently safe
+            riskScore = minOf(20, (highRiskCount * 2) + (mediumRiskCount * 1))
+            riskLevel = "LOW"
+        } else {
+            // For unknown/third-party apps, apply full analysis
+            val hasSuspiciousCombos = checkSuspiciousPermissionCombos(permissions, packageName, appName)
+            
+            // Calculate base risk score for untrusted apps
+            var baseScore = (highRiskCount * 10) + (mediumRiskCount * 4)
+            
+            // Boost score for suspicious combinations
+            if (hasSuspiciousCombos) {
+                baseScore += 35
+            }
+            
+            riskScore = minOf(100, baseScore)
+            
+            // Determine risk level for untrusted apps
+            riskLevel = when {
+                hasSuspiciousCombos -> "HIGH"
+                riskScore >= 50 -> "HIGH"
+                riskScore >= 25 -> "MEDIUM"
+                else -> "LOW"
+            }
+        }
+        
+        // Determine action
+        val action = when (riskLevel) {
+            "HIGH" -> "REVIEW"      // Changed from BLOCKED - suggest review, not block
+            "MEDIUM" -> "MONITOR"   // Changed from RESTRICTED - suggest monitoring
+            else -> "SAFE"          // Changed from ALLOWED - clearer messaging
+        }
+        
+        // Calculate confidence
+        val confidence = minOf(0.99, 0.70 + (permissions.size * 0.01))
+        
         val sourceDir = appInfo?.sourceDir ?: ""
         val fileSize = try {
             if (sourceDir.isNotEmpty()) {

@@ -2,7 +2,7 @@
 // Reusable card for displaying file information with risk badge and action status
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, FILE_TYPE_ICONS, ACTION_STATUS } from '../utils/constants';
 import RiskBadge from './RiskBadge';
@@ -36,7 +36,7 @@ const formatRelativeTime = (timestamp) => {
  * @param {Object} props.style - Optional additional styles
  */
 const FileCard = ({ file, onPress, style }) => {
-    // Get file type icon
+    // Get file type icon (fallback)
     const getFileIcon = (fileType) => {
         return FILE_TYPE_ICONS[fileType] || FILE_TYPE_ICONS.unknown;
     };
@@ -58,19 +58,30 @@ const FileCard = ({ file, onPress, style }) => {
     // Get relative time for last scan
     const lastScanTime = formatRelativeTime(file.scannedAt);
 
+    // Check if we have a valid base64 icon
+    const hasAppIcon = file.iconBase64 && file.iconBase64.length > 0;
+
     return (
         <TouchableOpacity
             style={[styles.card, style]}
             onPress={onPress}
             activeOpacity={0.7}
         >
-            {/* File Icon */}
+            {/* App Icon or Fallback File Icon */}
             <View style={styles.iconContainer}>
-                <MaterialCommunityIcons
-                    name={getFileIcon(file.fileType)}
-                    size={24}
-                    color={COLORS.secondary}
-                />
+                {hasAppIcon ? (
+                    <Image
+                        source={{ uri: `data:image/png;base64,${file.iconBase64}` }}
+                        style={styles.appIcon}
+                        resizeMode="contain"
+                    />
+                ) : (
+                    <MaterialCommunityIcons
+                        name={getFileIcon(file.fileType)}
+                        size={24}
+                        color={COLORS.secondary}
+                    />
+                )}
             </View>
 
             {/* File Details */}
@@ -122,6 +133,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
+        overflow: 'hidden',
+    },
+    appIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
     },
     details: {
         flex: 1,
