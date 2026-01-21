@@ -100,11 +100,14 @@ const HomeScreen = ({ navigation }) => {
                 fileType: file.fileType,
                 fileSize: file.fileSize,
                 hash: file.hash,
+                packageName: file.packageName,
+                iconBase64: file.iconBase64,
             },
             result: {
                 risk: file.risk,
                 confidence: file.confidence,
                 action: file.action,
+                packageName: file.packageName,
             },
         });
     };

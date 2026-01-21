@@ -11,8 +11,9 @@ import {
     SafeAreaView,
     TouchableOpacity,
     ActivityIndicator,
-    Linking,
     Alert,
+    Image,
+    NativeModules,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, RISK_LEVELS, ACTION_STATUS, FILE_TYPE_ICONS } from '../utils/constants';
@@ -28,6 +29,9 @@ const ScanResultScreen = ({ route, navigation }) => {
     const [permissions, setPermissions] = useState([]);
     const [malwareAnalysis, setMalwareAnalysis] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [showAllPermissions, setShowAllPermissions] = useState(false);
+
+    const { BehaviorModule } = NativeModules;
 
     // Fetch detailed data on mount
     useEffect(() => {
@@ -120,7 +124,7 @@ const ScanResultScreen = ({ route, navigation }) => {
     // Handle uninstall app
     const handleUninstall = () => {
         const packageName = file.packageName || result.packageName;
-        if (packageName) {
+        if (packageName && BehaviorModule) {
             Alert.alert(
                 'Uninstall App',
                 `Are you sure you want to uninstall ${file.fileName}?`,
@@ -129,11 +133,12 @@ const ScanResultScreen = ({ route, navigation }) => {
                     {
                         text: 'Uninstall',
                         style: 'destructive',
-                        onPress: () => {
-                            Linking.openURL(`package:${packageName}`).catch(() => {
-                                // Fallback for Android
-                                Linking.openSettings();
-                            });
+                        onPress: async () => {
+                            try {
+                                await BehaviorModule.uninstallApp(packageName);
+                            } catch (error) {
+                                Alert.alert('Error', 'Unable to uninstall. Please go to Settings > Apps to uninstall manually.');
+                            }
                         },
                     },
                 ]
@@ -142,12 +147,14 @@ const ScanResultScreen = ({ route, navigation }) => {
     };
 
     // Handle open app settings
-    const handleOpenSettings = () => {
+    const handleOpenSettings = async () => {
         const packageName = file.packageName || result.packageName;
-        if (packageName) {
-            Linking.openURL(`package:${packageName}`).catch(() => {
-                Linking.openSettings();
-            });
+        if (packageName && BehaviorModule) {
+            try {
+                await BehaviorModule.openAppSettings(packageName);
+            } catch (error) {
+                Alert.alert('Error', 'Unable to open app settings.');
+            }
         }
     };
 
@@ -213,7 +220,14 @@ const ScanResultScreen = ({ route, navigation }) => {
                     <Text style={styles.sectionTitle}>File Details</Text>
                     <View style={styles.card}>
                         <View style={styles.fileHeader}>
-                            <Text style={styles.fileIcon}>{getFileIcon(file.fileType)}</Text>
+                            {file.iconBase64 ? (
+                                <Image
+                                    source={{ uri: `data:image/png;base64,${file.iconBase64}` }}
+                                    style={styles.appIcon}
+                                />
+                            ) : (
+                                <Text style={styles.fileIcon}>{getFileIcon(file.fileType)}</Text>
+                            )}
                             <View style={styles.fileInfo}>
                                 <Text style={styles.fileName}>{file.fileName}</Text>
                                 <Text style={styles.fileHash} numberOfLines={1}>
@@ -268,28 +282,6 @@ const ScanResultScreen = ({ route, navigation }) => {
                                 />
                             </View>
                         </View>
-                    </View>
-
-                    {/* Action Decision Card */}
-                    <View style={[styles.card, styles.actionCard, { borderColor: getActionColor(result.action) }]}>
-                        <View style={styles.actionHeader}>
-                            <Text style={styles.actionIcon}>{getActionIcon(result.action)}</Text>
-                            <View>
-                                <Text style={styles.actionLabel}>Action Decision</Text>
-                                <Text style={[styles.actionValue, { color: getActionColor(result.action) }]}>
-                                    {result.action}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <Text style={styles.actionDescription}>
-                            {result.action === ACTION_STATUS.BLOCKED &&
-                                'This file has been blocked due to high security risk.'}
-                            {result.action === ACTION_STATUS.RESTRICTED &&
-                                'This file has restricted access due to potential risks.'}
-                            {result.action === ACTION_STATUS.ALLOWED &&
-                                'This file has passed security checks and is allowed.'}
-                        </Text>
                     </View>
                 </View>
 
@@ -363,7 +355,7 @@ const ScanResultScreen = ({ route, navigation }) => {
                                 <View style={styles.divider} />
 
                                 {/* Permission List */}
-                                {permissions.slice(0, 8).map((perm, index) => (
+                                {(showAllPermissions ? permissions : permissions.slice(0, 8)).map((perm, index) => (
                                     <View key={index} style={styles.permissionRow}>
                                         <View style={[styles.permIcon, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
                                             <MaterialCommunityIcons
@@ -384,7 +376,21 @@ const ScanResultScreen = ({ route, navigation }) => {
                                     </View>
                                 ))}
                                 {permissions.length > 8 && (
-                                    <Text style={styles.morePerms}>+{permissions.length - 8} more permissions</Text>
+                                    <TouchableOpacity
+                                        style={styles.morePermsButton}
+                                        onPress={() => setShowAllPermissions(!showAllPermissions)}
+                                    >
+                                        <Text style={styles.morePermsText}>
+                                            {showAllPermissions
+                                                ? 'Show Less'
+                                                : `+${permissions.length - 8} more permissions`}
+                                        </Text>
+                                        <MaterialCommunityIcons
+                                            name={showAllPermissions ? 'chevron-up' : 'chevron-down'}
+                                            size={18}
+                                            color={COLORS.secondary}
+                                        />
+                                    </TouchableOpacity>
                                 )}
                             </>
                         )}
@@ -480,6 +486,12 @@ const styles = StyleSheet.create({
     },
     fileIcon: {
         fontSize: 32,
+        marginRight: 14,
+    },
+    appIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 10,
         marginRight: 14,
     },
     fileInfo: {
@@ -702,6 +714,21 @@ const styles = StyleSheet.create({
         color: COLORS.secondary,
         textAlign: 'center',
         marginTop: 10,
+    },
+    morePermsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        marginTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.divider,
+    },
+    morePermsText: {
+        fontSize: 13,
+        color: COLORS.secondary,
+        fontWeight: '600',
+        marginRight: 4,
     },
     // Action buttons styles
     actionButtonsContainer: {

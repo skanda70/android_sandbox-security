@@ -54,11 +54,14 @@ const HistoryScreen = ({ navigation }) => {
                 fileType: file.fileType,
                 fileSize: file.fileSize,
                 hash: file.hash,
+                packageName: file.packageName,
+                iconBase64: file.iconBase64,
             },
             result: {
                 risk: file.risk,
                 confidence: file.confidence,
                 action: file.action,
+                packageName: file.packageName,
             },
         });
     };
@@ -143,7 +146,7 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: 'center',
-        paddingTop: 24,
+        paddingTop: 40,
         paddingBottom: 16,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.divider,
@@ -168,7 +171,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: 16,
-        paddingBottom: 30,
+        paddingBottom: 100,
     },
     dateSection: {
         marginBottom: 24,

@@ -81,8 +81,8 @@ export const getRecentFiles = async () => {
     try {
         const apps = await getInstalledApps();
 
-        // Take first 5 apps and analyze them
-        const recentApps = apps.slice(0, 5);
+        // Analyze all apps (no limit)
+        const recentApps = apps;
         const analyzedApps = await Promise.all(
             recentApps.map(async (app) => {
                 try {
@@ -131,9 +131,9 @@ export const getScanHistory = async () => {
     try {
         const apps = await getInstalledApps();
 
-        // Analyze all apps
+        // Analyze all apps (no limit)
         const analyzedApps = await Promise.all(
-            apps.slice(0, 15).map(async (app, index) => {
+            apps.map(async (app, index) => {
                 try {
                     if (Platform.OS === 'android' && BehaviorModule) {
                         const analysis = await BehaviorModule.analyzeApp(app.packageName);

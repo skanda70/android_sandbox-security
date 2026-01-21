@@ -9,6 +9,8 @@ import {
     ScrollView,
     SafeAreaView,
     Switch,
+    TouchableOpacity,
+    Linking,
 } from 'react-native';
 import { COLORS, APP_CONFIG } from '../utils/constants';
 
@@ -17,8 +19,10 @@ import { COLORS, APP_CONFIG } from '../utils/constants';
  * Toggle switches for scan settings and app information display
  */
 const SettingsScreen = () => {
-    const [realTimeScan, setRealTimeScan] = useState(true);
-    const [threatAlerts, setThreatAlerts] = useState(true);
+    const [showSystemApps, setShowSystemApps] = useState(false);
+    const [showDetailedRisk, setShowDetailedRisk] = useState(true);
+    const [highlightSideloaded, setHighlightSideloaded] = useState(true);
+    const [showTrustedApps, setShowTrustedApps] = useState(true);
 
     // Render a toggle setting row
     const renderToggleSetting = (icon, title, description, value, onValueChange) => {
@@ -56,6 +60,11 @@ const SettingsScreen = () => {
         );
     };
 
+    // Open device security settings
+    const openSecuritySettings = () => {
+        Linking.openSettings();
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
@@ -70,25 +79,64 @@ const SettingsScreen = () => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Scan Settings Section */}
+                {/* Display Settings Section */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Scan Settings</Text>
+                    <Text style={styles.sectionTitle}>Display Settings</Text>
                     <View style={styles.card}>
                         {renderToggleSetting(
-                            '🔄',
-                            'Real-time Scan',
-                            'Automatically scan new files',
-                            realTimeScan,
-                            setRealTimeScan
+                            '📱',
+                            'Show System Apps',
+                            'Include pre-installed system apps',
+                            showSystemApps,
+                            setShowSystemApps
                         )}
                         <View style={styles.divider} />
                         {renderToggleSetting(
-                            '🔔',
-                            'Threat Alerts',
-                            'Receive notifications for threats',
-                            threatAlerts,
-                            setThreatAlerts
+                            '✅',
+                            'Show Trusted Apps',
+                            'Display apps from verified publishers',
+                            showTrustedApps,
+                            setShowTrustedApps
                         )}
+                    </View>
+                </View>
+
+                {/* Security Settings Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Security Analysis</Text>
+                    <View style={styles.card}>
+                        {renderToggleSetting(
+                            '📊',
+                            'Detailed Risk Info',
+                            'Show risk breakdown and scores',
+                            showDetailedRisk,
+                            setShowDetailedRisk
+                        )}
+                        <View style={styles.divider} />
+                        {renderToggleSetting(
+                            '⚠️',
+                            'Highlight Sideloaded',
+                            'Flag apps not from Play Store',
+                            highlightSideloaded,
+                            setHighlightSideloaded
+                        )}
+                    </View>
+                </View>
+
+                {/* Quick Actions Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Quick Actions</Text>
+                    <View style={styles.card}>
+                        <TouchableOpacity style={styles.actionRow} onPress={openSecuritySettings}>
+                            <View style={styles.settingIcon}>
+                                <Text style={styles.icon}>🔐</Text>
+                            </View>
+                            <View style={styles.settingContent}>
+                                <Text style={styles.settingTitle}>Device Security</Text>
+                                <Text style={styles.settingDescription}>Open Android security settings</Text>
+                            </View>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -100,7 +148,9 @@ const SettingsScreen = () => {
                         <View style={styles.divider} />
                         {renderInfoRow('Version', APP_CONFIG.version)}
                         <View style={styles.divider} />
-                        {renderInfoRow('Backend Status', APP_CONFIG.backendStatus, true)}
+                        {renderInfoRow('Analysis Engine', 'ThreatScoringEngine v2.0')}
+                        <View style={styles.divider} />
+                        {renderInfoRow('Status', 'Active', true)}
                     </View>
                 </View>
 
@@ -112,8 +162,8 @@ const SettingsScreen = () => {
                             <Text style={styles.aboutIcon}>🛡️</Text>
                             <Text style={styles.aboutTitle}>Android Sandbox</Text>
                             <Text style={styles.aboutDescription}>
-                                A security-focused application for analyzing Android files and
-                                protecting your device from potential threats.
+                                Advanced app security analyzer with context-aware risk scoring,
+                                runtime behavioral detection, and comprehensive threat analysis.
                             </Text>
                         </View>
                     </View>
@@ -128,6 +178,7 @@ const SettingsScreen = () => {
             </ScrollView>
         </SafeAreaView>
     );
+
 };
 
 const styles = StyleSheet.create({
@@ -137,7 +188,7 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: 'center',
-        paddingTop: 24,
+        paddingTop: 40,
         paddingBottom: 16,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.divider,
@@ -162,7 +213,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: 20,
-        paddingBottom: 30,
+        paddingBottom: 100,
     },
     section: {
         marginBottom: 24,
@@ -280,6 +331,16 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: COLORS.textMuted,
         marginTop: 2,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 14,
+    },
+    chevron: {
+        fontSize: 24,
+        color: COLORS.textMuted,
+        fontWeight: '300',
     },
 });
 

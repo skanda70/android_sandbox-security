@@ -10,7 +10,7 @@ import com.facebook.react.bridge.WritableMap
 
 class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
-    private val monitor = BehaviorMonitor(reactContext)
+    private val threatEngine = ThreatScoringEngine(reactContext)
     private val networkAnalyzer = NetworkAnalyzer(reactContext)
     private val malwareDetector = MalwareDetector(reactContext)
 
@@ -25,7 +25,7 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     @ReactMethod
     fun getInstalledApps(promise: Promise) {
         try {
-            val apps = monitor.listInstalledApps()
+            val apps = threatEngine.listInstalledApps()
             val result: WritableArray = Arguments.createArray()
             
             apps.forEach { app ->
@@ -53,7 +53,7 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     @ReactMethod
     fun analyzeApp(packageName: String, promise: Promise) {
         try {
-            val analysis = monitor.analyzeAppRisk(packageName)
+            val analysis = threatEngine.analyzeAppRisk(packageName)
             val result: WritableMap = Arguments.createMap()
             
             result.putString("id", analysis["id"] as String)
@@ -70,6 +70,37 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             result.putInt("mediumRiskPerms", analysis["mediumRiskPerms"] as Int)
             result.putDouble("scannedAt", (analysis["scannedAt"] as Long).toDouble())
             
+            // Enhanced risk fields
+            result.putBoolean("isFromPlayStore", analysis["isFromPlayStore"] as Boolean)
+            result.putBoolean("isSideloaded", analysis["isSideloaded"] as Boolean)
+            result.putBoolean("isDebuggable", analysis["isDebuggable"] as Boolean)
+            result.putBoolean("isTestOnly", analysis["isTestOnly"] as Boolean)
+            result.putInt("targetSdk", analysis["targetSdk"] as Int)
+            result.putBoolean("isOutdated", analysis["isOutdated"] as Boolean)
+            result.putInt("riskScore", analysis["riskScore"] as Int)
+            result.putString("appCategory", analysis["appCategory"] as String)
+            result.putBoolean("isTrusted", analysis["isTrusted"] as Boolean)
+            
+            // Risk indicators (string array)
+            val indicators: WritableArray = Arguments.createArray()
+            @Suppress("UNCHECKED_CAST")
+            (analysis["riskIndicators"] as List<String>).forEach { ind ->
+                indicators.pushString(ind)
+            }
+            result.putArray("riskIndicators", indicators)
+            
+            // Risk breakdown (array of objects for explainability)
+            val breakdown: WritableArray = Arguments.createArray()
+            @Suppress("UNCHECKED_CAST")
+            (analysis["riskBreakdown"] as List<Map<String, Any>>).forEach { factor ->
+                val factorMap: WritableMap = Arguments.createMap()
+                factorMap.putString("category", factor["category"] as String)
+                factorMap.putString("description", factor["description"] as String)
+                factorMap.putInt("points", factor["points"] as Int)
+                breakdown.pushMap(factorMap)
+            }
+            result.putArray("riskBreakdown", breakdown)
+            
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to analyze app: ${e.message}")
@@ -83,7 +114,7 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     @ReactMethod
     fun getAppPermissions(packageName: String, promise: Promise) {
         try {
-            val permissions = monitor.getAppPermissions(packageName)
+            val permissions = threatEngine.getAppPermissions(packageName)
             val result: WritableArray = Arguments.createArray()
             
             permissions.forEach { perm ->
@@ -103,7 +134,7 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     @ReactMethod
     fun monitorAllApps(promise: Promise) {
         try {
-            monitor.monitorAppBehavior()
+            threatEngine.monitorAppBehavior()
             promise.resolve("Monitoring complete - check logcat for results")
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to monitor apps: ${e.message}")
@@ -117,7 +148,7 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     @ReactMethod
     fun getDetailedPermissions(packageName: String, promise: Promise) {
         try {
-            val permissions = monitor.getDetailedPermissions(packageName)
+            val permissions = threatEngine.getDetailedPermissions(packageName)
             val result: WritableArray = Arguments.createArray()
             
             permissions.forEach { perm ->
@@ -228,7 +259,7 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     @ReactMethod
     fun getAppFullDetails(packageName: String, promise: Promise) {
         try {
-            val details = monitor.getAppFullDetails(packageName)
+            val details = threatEngine.getAppFullDetails(packageName)
             val result: WritableMap = Arguments.createMap()
             
             result.putString("packageName", details["packageName"] as String)
@@ -251,6 +282,40 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to get app details: ${e.message}")
+        }
+    }
+
+    /**
+     * Open app settings page
+     * Called from React Native: BehaviorModule.openAppSettings(packageName)
+     */
+    @ReactMethod
+    fun openAppSettings(packageName: String, promise: Promise) {
+        try {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = android.net.Uri.parse("package:$packageName")
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactApplicationContext.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to open app settings: ${e.message}")
+        }
+    }
+
+    /**
+     * Trigger app uninstall dialog
+     * Called from React Native: BehaviorModule.uninstallApp(packageName)
+     */
+    @ReactMethod
+    fun uninstallApp(packageName: String, promise: Promise) {
+        try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_DELETE)
+            intent.data = android.net.Uri.parse("package:$packageName")
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactApplicationContext.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to uninstall app: ${e.message}")
         }
     }
 }
