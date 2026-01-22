@@ -66,14 +66,55 @@ class ThreatScoringEngine(private val context: Context) {
         private val CALL_APPS = listOf("phone", "dialer", "call", "zoom", "meet", "teams", "skype")
         private val LOCATION_APPS = listOf("map", "navigation", "gps", "uber", "lyft", "delivery", "weather")
         
-        // Trusted package prefixes
+        // Trusted package prefixes (OEMs and popular verified publishers)
         private val TRUSTED_PREFIXES = listOf(
+            // OEM/System
             "com.google.",
             "com.android.",
             "com.samsung.",
             "com.sec.",
             "com.miui.",
-            "com.huawei."
+            "com.huawei.",
+            "com.oneplus.",
+            "com.oppo.",
+            "com.vivo.",
+            "com.xiaomi.",
+            // Popular verified publishers
+            "com.facebook.",  // Facebook, Messenger, etc.
+            "com.meta.",
+            "com.instagram.",
+            "com.whatsapp.",
+            "com.brave.",
+            "com.canva.",
+            "com.spotify.",
+            "com.netflix.",
+            "com.amazon.",
+            "com.microsoft.",
+            "com.adobe.",
+            "com.dropbox.",
+            "com.slack.",
+            "com.discord.",
+            "com.twitter.",
+            "org.mozilla.",
+            "org.telegram.",
+            "com.zhiliaoapp.musically", // TikTok
+            "com.linkedin.",
+            "com.pinterest.",
+            "com.snapchat.",
+            "com.uber.",
+            "com.lyft.",
+            "com.airbnb.",
+            "com.paypal.",
+            "com.venmo.",
+            "tv.twitch.",
+            "com.duolingo.",
+            "com.shazam.",
+            "com.rovio.",
+            "com.king.",
+            "com.supercell.",
+            "com.ea.",
+            "com.gameloft.",
+            "com.zynga."
         )
     }
 
@@ -178,6 +219,26 @@ class ThreatScoringEngine(private val context: Context) {
             lowerPkg.contains("game") || lowerName.contains("game") -> "game"
             lowerPkg.contains("flashlight") || lowerName.contains("flashlight") -> "utility"
             lowerPkg.contains("calculator") || lowerName.contains("calculator") -> "utility"
+            // Browser apps
+            lowerPkg.contains("browser") || lowerName.contains("browser") ||
+                lowerPkg.contains("brave") || lowerPkg.contains("chrome") ||
+                lowerPkg.contains("firefox") || lowerPkg.contains("opera") ||
+                lowerPkg.contains("edge") || lowerName.contains("browser") -> "browser"
+            // Productivity/Design apps
+            lowerPkg.contains("canva") || lowerPkg.contains("adobe") ||
+                lowerPkg.contains("office") || lowerPkg.contains("docs") ||
+                lowerPkg.contains("sheets") || lowerPkg.contains("slides") ||
+                lowerPkg.contains("notion") || lowerName.contains("editor") -> "productivity"
+            // Entertainment
+            lowerPkg.contains("spotify") || lowerPkg.contains("netflix") ||
+                lowerPkg.contains("youtube") || lowerPkg.contains("music") ||
+                lowerPkg.contains("video") || lowerPkg.contains("player") -> "entertainment"
+            // Shopping
+            lowerPkg.contains("amazon") || lowerPkg.contains("shop") ||
+                lowerPkg.contains("store") || lowerPkg.contains("cart") -> "shopping"
+            // Finance
+            lowerPkg.contains("bank") || lowerPkg.contains("pay") ||
+                lowerPkg.contains("wallet") || lowerPkg.contains("finance") -> "finance"
             else -> "unknown"
         }
     }
@@ -187,12 +248,14 @@ class ThreatScoringEngine(private val context: Context) {
      */
     private fun isPermissionContextuallyAppropriate(permission: String, category: String): Boolean {
         return when {
-            permission.contains("CAMERA") -> category in listOf("camera", "social", "communication", "messaging")
-            permission.contains("RECORD_AUDIO") -> category in listOf("camera", "communication", "social")
-            permission.contains("LOCATION") -> category in listOf("location", "social", "communication")
+            permission.contains("CAMERA") -> category in listOf("camera", "social", "communication", "messaging", "browser", "productivity")
+            permission.contains("RECORD_AUDIO") -> category in listOf("camera", "communication", "social", "browser", "entertainment")
+            permission.contains("LOCATION") -> category in listOf("location", "social", "communication", "browser", "shopping")
             permission.contains("CONTACTS") -> category in listOf("messaging", "social", "communication")
             permission.contains("SMS") -> category in listOf("messaging")
             permission.contains("CALL_LOG") -> category in listOf("communication")
+            permission.contains("STORAGE") || permission.contains("EXTERNAL") -> category in listOf("camera", "productivity", "browser", "entertainment")
+            permission.contains("INTERNET") -> true // Almost all apps need internet
             else -> true // Other permissions are generally acceptable
         }
     }
@@ -338,6 +401,16 @@ class ThreatScoringEngine(private val context: Context) {
                 forceHigh = true
             }
             
+            // === Play Store Trust Bonus ===
+            // Apps from Google Play Store are verified, reduce their score significantly
+            if (isFromPlayStore && !hasSuspiciousCombo) {
+                val reduction = (riskScore * 0.40).toInt() // 40% reduction for Play Store apps
+                riskScore = maxOf(0, riskScore - reduction)
+                if (reduction > 0) {
+                    riskFactors.add(RiskFactor("Trust", "Installed from Google Play Store (-$reduction)", -reduction))
+                }
+            }
+            
             // === Installation signals ===
             if (isSideloaded) {
                 val hasHighRiskPerms = highRiskCount > 0
@@ -403,9 +476,11 @@ class ThreatScoringEngine(private val context: Context) {
         riskScore = minOf(100, riskScore)
         
         // Determine risk level
+        // IMPORTANT: Play Store apps should NEVER be flagged as HIGH risk
         val riskLevel = when {
             isTrusted -> "LOW"
-            forceHigh -> "HIGH"
+            isFromPlayStore -> if (riskScore >= 20) "MEDIUM" else "LOW" // Play Store apps ALWAYS capped at MEDIUM
+            forceHigh -> "HIGH"  // forceHigh only applies to non-Play Store apps
             riskScore >= 45 -> "HIGH"
             riskScore >= 20 -> "MEDIUM"
             else -> "LOW"

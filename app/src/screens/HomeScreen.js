@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../utils/constants';
-import { getRecentFiles, scanFile } from '../services/api';
+import { getRecentFiles, scanFile, analyzeApp, getDetailedPermissions, getMalwareAnalysis, getInstalledApps } from '../services/api';
 import FileCard from '../components/FileCard';
 import ScanButton from '../components/ScanButton';
+import AppSelectionModal from '../components/AppSelectionModal';
 
 // Import the logo
 const AppLogo = require('../assets/logo.png');
@@ -26,8 +27,11 @@ const AppLogo = require('../assets/logo.png');
  */
 const HomeScreen = ({ navigation }) => {
     const [recentFiles, setRecentFiles] = useState([]);
+    const [allApps, setAllApps] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [appsLoading, setAppsLoading] = useState(false);
     const [scanning, setScanning] = useState(false);
+    const [modalVisible, setModalVisible] = useState(false);
 
     // Fetch recent files on mount
     useEffect(() => {
@@ -46,47 +50,54 @@ const HomeScreen = ({ navigation }) => {
         }
     };
 
-    // Handle scan button press
+    // Handle scan button press - open app selection modal and fetch apps
     const handleScan = async () => {
+        setModalVisible(true);
+        setAppsLoading(true);
+        try {
+            const apps = await getInstalledApps();
+            setAllApps(apps);
+        } catch (error) {
+            console.error('Failed to fetch apps for selection:', error);
+        } finally {
+            setAppsLoading(false);
+        }
+    };
+
+    // Handle app selection from modal - perform deep scan
+    const handleAppSelect = async (app) => {
+        setModalVisible(false);
         setScanning(true);
         try {
-            // Get first installed app to demo scanning
-            if (recentFiles.length > 0) {
-                const appToScan = recentFiles[0];
-                const result = await scanFile({
-                    fileName: appToScan.fileName,
-                    fileType: appToScan.fileType,
-                    fileSize: appToScan.fileSize,
-                    packageName: appToScan.packageName,
-                    hash: appToScan.hash || `sha256-${appToScan.id}`,
-                });
+            // Perform deep scan: basic analysis + detailed permissions + malware analysis
+            const [basicResult, permissions, malwareAnalysis] = await Promise.all([
+                analyzeApp(app.packageName),
+                getDetailedPermissions(app.packageName),
+                getMalwareAnalysis(app.packageName),
+            ]);
 
-                // Navigate to scan result screen with file and result data
-                navigation.navigate('ScanResult', {
-                    file: {
-                        fileName: appToScan.fileName,
-                        fileType: appToScan.fileType,
-                        fileSize: appToScan.fileSize,
-                        hash: appToScan.hash || `sha256-${appToScan.id}`,
-                    },
-                    result: result,
-                });
-            } else {
-                // Fallback if no apps found
-                const mockFile = {
-                    fileName: 'sample_app.apk',
+            // Navigate to scan result screen with comprehensive deep scan data
+            navigation.navigate('ScanResult', {
+                file: {
+                    fileName: app.fileName || app.appName,
                     fileType: 'apk',
-                    fileSize: '15.2 MB',
-                    hash: 'sha256-sample123...',
-                };
-                const result = await scanFile(mockFile);
-                navigation.navigate('ScanResult', {
-                    file: mockFile,
-                    result: result,
-                });
-            }
+                    fileSize: app.fileSize || 'N/A',
+                    hash: app.hash || `sha256-${app.packageName}`,
+                    packageName: app.packageName,
+                    iconBase64: app.iconBase64,
+                },
+                result: {
+                    risk: basicResult.risk,
+                    confidence: basicResult.confidence,
+                    action: basicResult.action,
+                    packageName: app.packageName,
+                    // Deep scan data
+                    permissions: permissions,
+                    malwareAnalysis: malwareAnalysis,
+                },
+            });
         } catch (error) {
-            console.error('Scan failed:', error);
+            console.error('Deep scan failed:', error);
         } finally {
             setScanning(false);
         }
@@ -173,6 +184,15 @@ const HomeScreen = ({ navigation }) => {
                     )}
                 </View>
             </ScrollView>
+
+            {/* App Selection Modal */}
+            <AppSelectionModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                onSelectApp={handleAppSelect}
+                apps={allApps}
+                loading={appsLoading}
+            />
         </SafeAreaView>
     );
 };

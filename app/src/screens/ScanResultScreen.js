@@ -285,117 +285,247 @@ const ScanResultScreen = ({ route, navigation }) => {
                     </View>
                 </View>
 
-                {/* Threat Details Section */}
+                {/* App Information Section - Deep Scan Details */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Threat Analysis</Text>
+                    <Text style={styles.sectionTitle}>App Information</Text>
                     <View style={styles.card}>
-                        {loading ? (
-                            <ActivityIndicator color={COLORS.secondary} />
-                        ) : (
-                            <>
-                                {malwareAnalysis && (
-                                    <View style={styles.threatScoreRow}>
-                                        <View style={styles.threatScoreCircle}>
-                                            <Text style={styles.threatScoreValue}>{malwareAnalysis.threatScore}</Text>
-                                            <Text style={styles.threatScoreLabel}>Score</Text>
-                                        </View>
-                                        <View style={styles.threatInfo}>
-                                            <Text style={[styles.threatLevel, { color: getRiskColor(malwareAnalysis.threatLevel) }]}>
-                                                {malwareAnalysis.threatLevel} THREAT
-                                            </Text>
-                                            <Text style={styles.threatStatus}>
-                                                {malwareAnalysis.isSafe ? '✓ App appears safe' : '⚠ Potential risks detected'}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                )}
-                                <View style={styles.divider} />
-                                <Text style={styles.explanationTitle}>Why this assessment?</Text>
-                                {getThreatExplanation().map((explanation, index) => (
-                                    <View key={index} style={styles.explanationRow}>
-                                        <MaterialCommunityIcons
-                                            name={result.risk === RISK_LEVELS.LOW ? 'check-circle' : 'alert-circle'}
-                                            size={16}
-                                            color={result.risk === RISK_LEVELS.LOW ? COLORS.riskLow : COLORS.riskMedium}
-                                        />
-                                        <Text style={styles.explanationText}>{explanation}</Text>
-                                    </View>
-                                ))}
-                            </>
-                        )}
-                    </View>
-                </View>
+                        {/* Installation Source */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons
+                                    name={result.isFromPlayStore ? 'google-play' : (result.isSideloaded ? 'download' : 'store')}
+                                    size={20}
+                                    color={result.isFromPlayStore ? COLORS.riskLow : (result.isSideloaded ? COLORS.riskMedium : COLORS.textSecondary)}
+                                />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Installation Source</Text>
+                                <Text style={[styles.infoValue, { color: result.isFromPlayStore ? COLORS.riskLow : (result.isSideloaded ? COLORS.riskMedium : COLORS.textPrimary) }]}>
+                                    {result.isFromPlayStore ? '✓ Google Play Store' : (result.isSideloaded ? '⚠ Sideloaded' : 'Third-Party Store')}
+                                </Text>
+                            </View>
+                        </View>
 
-                {/* Permission Breakdown Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Permission Breakdown</Text>
-                    <View style={styles.card}>
-                        {loading ? (
-                            <ActivityIndicator color={COLORS.secondary} />
-                        ) : permissions.length === 0 ? (
-                            <Text style={styles.noPermissions}>No special permissions required</Text>
-                        ) : (
-                            <>
-                                {/* Permission Stats */}
-                                <View style={styles.permissionStats}>
-                                    <View style={[styles.permStat, { backgroundColor: COLORS.riskHigh + '20' }]}>
-                                        <Text style={[styles.permStatNum, { color: COLORS.riskHigh }]}>{highRiskPerms.length}</Text>
-                                        <Text style={styles.permStatLabel}>High</Text>
-                                    </View>
-                                    <View style={[styles.permStat, { backgroundColor: COLORS.riskMedium + '20' }]}>
-                                        <Text style={[styles.permStatNum, { color: COLORS.riskMedium }]}>{mediumRiskPerms.length}</Text>
-                                        <Text style={styles.permStatLabel}>Medium</Text>
-                                    </View>
-                                    <View style={[styles.permStat, { backgroundColor: COLORS.riskLow + '20' }]}>
-                                        <Text style={[styles.permStatNum, { color: COLORS.riskLow }]}>{lowRiskPerms.length}</Text>
-                                        <Text style={styles.permStatLabel}>Low</Text>
+                        <View style={styles.divider} />
+
+                        {/* Trust Status */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons
+                                    name={result.isTrusted ? 'shield-check' : 'shield-outline'}
+                                    size={20}
+                                    color={result.isTrusted ? COLORS.riskLow : COLORS.textSecondary}
+                                />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Publisher Status</Text>
+                                <Text style={[styles.infoValue, { color: result.isTrusted ? COLORS.riskLow : COLORS.textPrimary }]}>
+                                    {result.isTrusted ? '✓ Verified Publisher' : 'Unverified Publisher'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* App Category */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="tag" size={20} color={COLORS.secondary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Category</Text>
+                                <Text style={styles.infoValue}>
+                                    {result.appCategory ? result.appCategory.charAt(0).toUpperCase() + result.appCategory.slice(1) : 'Unknown'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Target SDK */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="android" size={20} color={COLORS.secondary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Target Android SDK</Text>
+                                <Text style={styles.infoValue}>
+                                    {result.targetSdk ? `API ${result.targetSdk}` : 'Unknown'}
+                                    {result.targetSdk && result.targetSdk < 29 ? ' (Outdated)' : ''}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Risk Score */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="speedometer" size={20} color={getRiskColor(result.risk)} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Risk Score</Text>
+                                <View style={styles.riskScoreContainer}>
+                                    <Text style={[styles.infoValue, { color: getRiskColor(result.risk) }]}>
+                                        {result.riskScore !== undefined ? result.riskScore : '—'}/100
+                                    </Text>
+                                    <View style={styles.riskScoreBar}>
+                                        <View style={[styles.riskScoreFill, {
+                                            width: `${result.riskScore || 0}%`,
+                                            backgroundColor: getRiskColor(result.risk)
+                                        }]} />
                                     </View>
                                 </View>
+                            </View>
+                        </View>
 
-                                <View style={styles.divider} />
+                        <View style={styles.divider} />
 
-                                {/* Permission List */}
-                                {(showAllPermissions ? permissions : permissions.slice(0, 8)).map((perm, index) => (
-                                    <View key={index} style={styles.permissionRow}>
-                                        <View style={[styles.permIcon, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
-                                            <MaterialCommunityIcons
-                                                name={getPermissionIcon(perm.icon)}
-                                                size={18}
-                                                color={getRiskColor(perm.riskLevel)}
-                                            />
-                                        </View>
-                                        <View style={styles.permInfo}>
-                                            <Text style={styles.permName}>{perm.shortName}</Text>
-                                            <Text style={styles.permDesc} numberOfLines={1}>{perm.description}</Text>
-                                        </View>
-                                        <View style={[styles.permRiskBadge, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
-                                            <Text style={[styles.permRiskText, { color: getRiskColor(perm.riskLevel) }]}>
-                                                {perm.riskLevel}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                ))}
-                                {permissions.length > 8 && (
-                                    <TouchableOpacity
-                                        style={styles.morePermsButton}
-                                        onPress={() => setShowAllPermissions(!showAllPermissions)}
-                                    >
-                                        <Text style={styles.morePermsText}>
-                                            {showAllPermissions
-                                                ? 'Show Less'
-                                                : `+${permissions.length - 8} more permissions`}
-                                        </Text>
-                                        <MaterialCommunityIcons
-                                            name={showAllPermissions ? 'chevron-up' : 'chevron-down'}
-                                            size={18}
-                                            color={COLORS.secondary}
-                                        />
-                                    </TouchableOpacity>
-                                )}
-                            </>
-                        )}
+                        {/* Permissions Summary */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="lock" size={20} color={COLORS.secondary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Permissions</Text>
+                                <Text style={styles.infoValue}>
+                                    {result.permissionCount || permissions.length || 0} total
+                                    {result.highRiskPerms > 0 && <Text style={{ color: COLORS.riskHigh }}> ({result.highRiskPerms} high-risk)</Text>}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Package Name */}
+                        <View style={styles.divider} />
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="package-variant" size={20} color={COLORS.textMuted} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Package Name</Text>
+                                <Text style={[styles.infoValue, styles.packageNameText]} numberOfLines={1}>
+                                    {file.packageName || result.packageName || 'Unknown'}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
+
+                {/* Threat Details Section - Only show for MEDIUM and HIGH risk apps */}
+                {result.risk !== 'LOW' && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Threat Analysis</Text>
+                        <View style={styles.card}>
+                            {loading ? (
+                                <ActivityIndicator color={COLORS.secondary} />
+                            ) : (
+                                <>
+                                    {malwareAnalysis && (
+                                        <View style={styles.threatScoreRow}>
+                                            <View style={styles.threatScoreCircle}>
+                                                <Text style={styles.threatScoreValue}>{malwareAnalysis.threatScore}</Text>
+                                                <Text style={styles.threatScoreLabel}>Score</Text>
+                                            </View>
+                                            <View style={styles.threatInfo}>
+                                                <Text style={[styles.threatLevel, { color: getRiskColor(malwareAnalysis.threatLevel) }]}>
+                                                    {malwareAnalysis.threatLevel} THREAT
+                                                </Text>
+                                                <Text style={styles.threatStatus}>
+                                                    {malwareAnalysis.isSafe ? '✓ App appears safe' : '⚠ Potential risks detected'}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    )}
+                                    <View style={styles.divider} />
+                                    <Text style={styles.explanationTitle}>Why this assessment?</Text>
+                                    {getThreatExplanation().map((explanation, index) => (
+                                        <View key={index} style={styles.explanationRow}>
+                                            <MaterialCommunityIcons
+                                                name={result.risk === RISK_LEVELS.LOW ? 'check-circle' : 'alert-circle'}
+                                                size={16}
+                                                color={result.risk === RISK_LEVELS.LOW ? COLORS.riskLow : COLORS.riskMedium}
+                                            />
+                                            <Text style={styles.explanationText}>{explanation}</Text>
+                                        </View>
+                                    ))}
+                                </>
+                            )}
+                        </View>
+                    </View>
+                )}
+
+                {/* Permission Breakdown Section - Only show for MEDIUM and HIGH risk apps */}
+                {result.risk !== 'LOW' && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Permission Breakdown</Text>
+                        <View style={styles.card}>
+                            {loading ? (
+                                <ActivityIndicator color={COLORS.secondary} />
+                            ) : permissions.length === 0 ? (
+                                <Text style={styles.noPermissions}>No special permissions required</Text>
+                            ) : (
+                                <>
+                                    {/* Permission Stats */}
+                                    <View style={styles.permissionStats}>
+                                        <View style={[styles.permStat, { backgroundColor: COLORS.riskHigh + '20' }]}>
+                                            <Text style={[styles.permStatNum, { color: COLORS.riskHigh }]}>{highRiskPerms.length}</Text>
+                                            <Text style={styles.permStatLabel}>High</Text>
+                                        </View>
+                                        <View style={[styles.permStat, { backgroundColor: COLORS.riskMedium + '20' }]}>
+                                            <Text style={[styles.permStatNum, { color: COLORS.riskMedium }]}>{mediumRiskPerms.length}</Text>
+                                            <Text style={styles.permStatLabel}>Medium</Text>
+                                        </View>
+                                        <View style={[styles.permStat, { backgroundColor: COLORS.riskLow + '20' }]}>
+                                            <Text style={[styles.permStatNum, { color: COLORS.riskLow }]}>{lowRiskPerms.length}</Text>
+                                            <Text style={styles.permStatLabel}>Low</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.divider} />
+
+                                    {/* Permission List */}
+                                    {(showAllPermissions ? permissions : permissions.slice(0, 8)).map((perm, index) => (
+                                        <View key={index} style={styles.permissionRow}>
+                                            <View style={[styles.permIcon, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
+                                                <MaterialCommunityIcons
+                                                    name={getPermissionIcon(perm.icon)}
+                                                    size={18}
+                                                    color={getRiskColor(perm.riskLevel)}
+                                                />
+                                            </View>
+                                            <View style={styles.permInfo}>
+                                                <Text style={styles.permName}>{perm.shortName}</Text>
+                                                <Text style={styles.permDesc} numberOfLines={1}>{perm.description}</Text>
+                                            </View>
+                                            <View style={[styles.permRiskBadge, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
+                                                <Text style={[styles.permRiskText, { color: getRiskColor(perm.riskLevel) }]}>
+                                                    {perm.riskLevel}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                    {permissions.length > 8 && (
+                                        <TouchableOpacity
+                                            style={styles.morePermsButton}
+                                            onPress={() => setShowAllPermissions(!showAllPermissions)}
+                                        >
+                                            <Text style={styles.morePermsText}>
+                                                {showAllPermissions
+                                                    ? 'Show Less'
+                                                    : `+${permissions.length - 8} more permissions`}
+                                            </Text>
+                                            <MaterialCommunityIcons
+                                                name={showAllPermissions ? 'chevron-up' : 'chevron-down'}
+                                                size={18}
+                                                color={COLORS.secondary}
+                                            />
+                                        </TouchableOpacity>
+                                    )}
+                                </>
+                            )}
+                        </View>
+                    </View>
+                )}
 
                 {/* Action Buttons Section */}
                 <View style={styles.section}>
@@ -773,6 +903,55 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: COLORS.secondary,
         fontWeight: '600',
+    },
+    // App Information section styles
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    infoIconContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: COLORS.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    infoContent: {
+        flex: 1,
+    },
+    infoLabel: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginBottom: 2,
+    },
+    infoValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    packageNameText: {
+        fontSize: 11,
+        fontFamily: 'monospace',
+        color: COLORS.textSecondary,
+    },
+    riskScoreContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    riskScoreBar: {
+        flex: 1,
+        height: 6,
+        backgroundColor: COLORS.surface,
+        borderRadius: 3,
+        marginLeft: 10,
+        overflow: 'hidden',
+    },
+    riskScoreFill: {
+        height: '100%',
+        borderRadius: 3,
     },
 });
 
