@@ -112,6 +112,9 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // ONNX Runtime for ML inference
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.16.3'
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

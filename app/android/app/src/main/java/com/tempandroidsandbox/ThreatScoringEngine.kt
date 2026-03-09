@@ -695,4 +695,143 @@ class ThreatScoringEngine(private val context: Context) {
             )
         }
     }
+
+    /**
+     * Compute final risk score combining static rule score + ML probability
+     * 
+     * Uses weighted combination:
+     * final_risk = 0.4 * static_score + 0.6 * ml_probability
+     * 
+     * @param staticScore Static rule-based risk score (0-100)
+     * @param mlProbability ML model probability of being malicious (0.0-1.0)
+     * @return Combined risk score (0.0-1.0)
+     */
+    fun computeCombinedRiskScore(staticScore: Int, mlProbability: Double): Double {
+        // Normalize static score to 0-1 range
+        val normalizedStatic = staticScore / 100.0
+        
+        // Clamp ML probability to valid range
+        val clampedML = mlProbability.coerceIn(0.0, 1.0)
+        
+        // Weighted combination: 40% static, 60% ML
+        val weightStatic = 0.4
+        val weightML = 0.6
+        
+        val combinedRisk = (weightStatic * normalizedStatic) + (weightML * clampedML)
+        
+        return combinedRisk.coerceIn(0.0, 1.0)
+    }
+
+    /**
+     * Compute final risk score with configurable weights
+     * 
+     * @param staticScore Static rule-based risk score (0-100)
+     * @param mlProbability ML model probability of being malicious (0.0-1.0)
+     * @param staticWeight Weight for static score (default 0.4)
+     * @return Combined risk score (0.0-1.0)
+     */
+    fun computeCombinedRiskScore(
+        staticScore: Int, 
+        mlProbability: Double, 
+        staticWeight: Double = 0.4
+    ): Double {
+        require(staticWeight in 0.0..1.0) { "Static weight must be between 0 and 1" }
+        
+        val mlWeight = 1.0 - staticWeight
+        
+        val normalizedStatic = staticScore / 100.0
+        val clampedML = mlProbability.coerceIn(0.0, 1.0)
+        
+        val combinedRisk = (staticWeight * normalizedStatic) + (mlWeight * clampedML)
+        
+        return combinedRisk.coerceIn(0.0, 1.0)
+    }
+
+    /**
+     * Determine risk level from combined score
+     * 
+     * @param combinedScore Combined risk score (0.0-1.0)
+     * @return Risk level string: "LOW", "MEDIUM", "HIGH"
+     */
+    fun getRiskLevelFromScore(combinedScore: Double): String {
+        return when {
+            combinedScore >= 0.7 -> "HIGH"
+            combinedScore >= 0.4 -> "MEDIUM"
+            else -> "LOW"
+        }
+    }
+
+    /**
+     * Determine action recommendation from risk level
+     * 
+     * @param riskLevel Risk level string
+     * @return Action recommendation: "REVIEW", "MONITOR", "SAFE"
+     */
+    fun getActionFromRiskLevel(riskLevel: String): String {
+        return when (riskLevel) {
+            "HIGH" -> "REVIEW"
+            "MEDIUM" -> "MONITOR"
+            else -> "SAFE"
+        }
+    }
+
+    /**
+     * Full threat analysis combining static rules + ML inference
+     * 
+     * @param packageName App package name
+     * @param mlResult ML inference result from MalwareDetector
+     * @return Complete threat analysis with combined scoring
+     */
+    fun analyzeWithML(packageName: String, mlResult: MalwareDetector.InferenceResult): Map<String, Any> {
+        // Get static analysis results
+        val staticAnalysis = analyzeAppRisk(packageName)
+        val staticScore = staticAnalysis["riskScore"] as Int
+        
+        // Get ML probability (probability of being malicious)
+        // For benign apps (label 4), use 1 - confidence
+        val mlMaliciousProb = if (mlResult.label == 4) {
+            1.0 - mlResult.confidence  // Benign: low malicious probability
+        } else {
+            mlResult.confidence  // Malicious: high probability
+        }
+        
+        // Compute combined risk
+        val combinedScore = computeCombinedRiskScore(staticScore, mlMaliciousProb)
+        val riskLevel = getRiskLevelFromScore(combinedScore)
+        val action = getActionFromRiskLevel(riskLevel)
+        
+        // Calculate confidence (higher when both methods agree)
+        val mlConfidence = mlResult.confidence
+        val staticConfidence = staticAnalysis["confidence"] as Double
+        val combinedConfidence = (mlConfidence + staticConfidence) / 2.0
+        
+        return mapOf(
+            "packageName" to packageName,
+            "appName" to staticAnalysis["fileName"],
+            // Static analysis
+            "staticRiskScore" to staticScore,
+            "staticRiskLevel" to staticAnalysis["risk"],
+            "staticConfidence" to staticConfidence,
+            // ML analysis
+            "mlLabel" to mlResult.label,
+            "mlClassName" to mlResult.className,
+            "mlConfidence" to mlConfidence,
+            "mlProbabilities" to mlResult.probabilities,
+            // Combined results
+            "combinedRiskScore" to combinedScore,
+            "riskLevel" to riskLevel,
+            "confidence" to combinedConfidence,
+            "action" to action,
+            "scannedAt" to System.currentTimeMillis(),
+            // Metadata
+            "permissionCount" to staticAnalysis["permissionCount"],
+            "highRiskPerms" to staticAnalysis["highRiskPerms"],
+            "mediumRiskPerms" to staticAnalysis["mediumRiskPerms"],
+            "isFromPlayStore" to staticAnalysis["isFromPlayStore"],
+            "isSideloaded" to staticAnalysis["isSideloaded"],
+            "isDebuggable" to staticAnalysis["isDebuggable"],
+            "isTestOnly" to staticAnalysis["isTestOnly"],
+            "targetSdk" to staticAnalysis["targetSdk"]
+        )
+    }
 }

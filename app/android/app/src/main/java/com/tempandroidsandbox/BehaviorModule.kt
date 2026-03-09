@@ -7,12 +7,24 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     private val threatEngine = ThreatScoringEngine(reactContext)
     private val networkAnalyzer = NetworkAnalyzer(reactContext)
-    private val malwareDetector = MalwareDetector(reactContext)
+    private val behaviorMonitor = BehaviorMonitor(reactContext)
+    
+    // Use singleton for MalwareDetector to avoid loading model multiple times
+    private val malwareDetector: MalwareDetector by lazy {
+        MalwareDetector.getInstance(reactContext)
+    }
+
+    // Coroutine scope for async operations
+    private val moduleScope = CoroutineScope(Dispatchers.Main)
 
     override fun getName(): String {
         return "BehaviorModule"
@@ -316,6 +328,124 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to uninstall app: ${e.message}")
+        }
+    }
+
+    /**
+     * Perform hybrid ML-based scan of an app
+     * Combines static rule-based analysis with ONNX ML inference
+     * 
+     * Returns JSON:
+     * {
+     *   "label": 2,
+     *   "confidence": 0.91,
+     *   "risk_score": 0.88
+     * }
+     * 
+     * Called from React Native: BehaviorModule.scan(packageName)
+     */
+    @ReactMethod
+    fun scan(packageName: String, promise: Promise) {
+        moduleScope.launch {
+            try {
+                // Step 1: Extract features (build FloatArray[139])
+                val features = behaviorMonitor.buildFeatureVector(packageName)
+                
+                // Step 2: Initialize ML model if not already loaded
+                if (!malwareDetector.isReady()) {
+                    malwareDetector.initializeModel()
+                }
+                
+                // Step 3: Run ML inference (off main thread)
+                val mlResult = malwareDetector.runInference(features)
+                
+                // Step 4: Get static analysis for combination
+                val staticAnalysis = threatEngine.analyzeAppRisk(packageName)
+                val staticScore = staticAnalysis["riskScore"] as Int
+                
+                // Step 5: Compute combined risk score
+                // ML probability: for benign (label 4), use 1-confidence; for malicious, use confidence
+                val mlProb = if (mlResult.label == 4) {
+                    1.0 - mlResult.confidence
+                } else {
+                    mlResult.confidence
+                }
+                
+                // Combine: 40% static + 60% ML
+                val combinedScore = threatEngine.computeCombinedRiskScore(staticScore, mlProb)
+                
+                // Step 6: Build response JSON
+                val result: WritableMap = Arguments.createMap()
+                result.putInt("label", mlResult.label)
+                result.putDouble("confidence", mlResult.confidence)
+                result.putDouble("risk_score", combinedScore)
+                
+                // Additional details for UI
+                result.putString("ml_class_name", mlResult.className)
+                result.putInt("static_risk_score", staticScore)
+                result.putString("risk_level", when {
+                    combinedScore >= 0.7 -> "HIGH"
+                    combinedScore >= 0.4 -> "MEDIUM"
+                    else -> "LOW"
+                })
+                result.putString("action", when {
+                    combinedScore >= 0.7 -> "REVIEW"
+                    combinedScore >= 0.4 -> "MONITOR"
+                    else -> "SAFE"
+                })
+                result.putDouble("scanned_at", System.currentTimeMillis().toDouble())
+                
+                // ML probabilities for all classes
+                val probabilities: WritableArray = Arguments.createArray()
+                mlResult.probabilities.forEach { prob ->
+                    probabilities.pushDouble(prob)
+                }
+                result.putArray("probabilities", probabilities)
+                
+                promise.resolve(result)
+                
+            } catch (e: Exception) {
+                // On error, try to return basic info
+                try {
+                    val fallbackResult: WritableMap = Arguments.createMap()
+                    fallbackResult.putInt("label", -1)
+                    fallbackResult.putDouble("confidence", 0.0)
+                    fallbackResult.putDouble("risk_score", 0.0)
+                    fallbackResult.putString("error", e.message ?: "Unknown error")
+                    promise.resolve(fallbackResult)
+                } catch (fallbackError: Exception) {
+                    promise.reject("SCAN_ERROR", "Failed to scan app: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Initialize the ML model (call once at app startup)
+     * Called from React Native: BehaviorModule.initializeModel()
+     */
+    @ReactMethod
+    fun initializeModel(promise: Promise) {
+        moduleScope.launch {
+            try {
+                malwareDetector.initializeModel()
+                promise.resolve(true)
+            } catch (e: Exception) {
+                promise.reject("INIT_ERROR", "Failed to initialize ML model: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Check if ML model is ready
+     * Called from React Native: BehaviorModule.isModelReady()
+     */
+    @ReactMethod
+    fun isModelReady(promise: Promise) {
+        try {
+            promise.resolve(malwareDetector.isReady())
+        } catch (e: Exception) {
+            promise.resolve(false)
         }
     }
 }
