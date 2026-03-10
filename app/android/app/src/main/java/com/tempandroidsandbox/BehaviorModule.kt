@@ -14,6 +14,10 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     private val networkAnalyzer = NetworkAnalyzer(reactContext)
     private val malwareDetector = MalwareDetector(reactContext)
 
+    // ML components (lazy initialization to avoid startup overhead)
+    private val featureExtractor by lazy { FeatureExtractor(reactContext) }
+    private val mlClassifier by lazy { OnnxMalwareClassifier.getInstance(reactContext) }
+
     override fun getName(): String {
         return "BehaviorModule"
     }
@@ -101,9 +105,66 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             }
             result.putArray("riskBreakdown", breakdown)
             
+            // === HYBRID ML ANALYSIS ===
+            try {
+                val features = featureExtractor.extractFeatures(packageName)
+                val mlResult = mlClassifier.predict(features)
+                
+                result.putString("mlPrediction", mlResult.predictedLabel)
+                result.putDouble("mlConfidence", mlResult.confidence.toDouble())
+                result.putInt("mlClassIndex", mlResult.predictedClass)
+                
+                // ML probabilities map
+                val probMap: WritableMap = Arguments.createMap()
+                OnnxMalwareClassifier.CLASS_LABELS.forEachIndexed { idx, label ->
+                    probMap.putDouble(label, mlResult.probabilities[idx].toDouble())
+                }
+                result.putMap("mlProbabilities", probMap)
+                
+                // Compute hybrid risk level
+                val heuristicRisk = analysis["risk"] as String
+                val hybridRisk = computeHybridRisk(heuristicRisk, mlResult)
+                result.putString("hybridRisk", hybridRisk)
+                result.putBoolean("mlAvailable", true)
+            } catch (mlError: Exception) {
+                // ML failed — still return heuristic results
+                result.putString("mlPrediction", "Unknown")
+                result.putDouble("mlConfidence", 0.0)
+                result.putString("hybridRisk", analysis["risk"] as String)
+                result.putBoolean("mlAvailable", false)
+            }
+            
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to analyze app: ${e.message}")
+        }
+    }
+
+    /**
+     * Compute hybrid risk by combining heuristic and ML results.
+     * If either flags HIGH, the hybrid is HIGH.
+     * If ML says malware (non-Benign) with >60% confidence, bump to at least MEDIUM.
+     */
+    private fun computeHybridRisk(
+        heuristicRisk: String,
+        mlResult: OnnxMalwareClassifier.PredictionResult
+    ): String {
+        val mlIsMalware = mlResult.predictedClass != 0  // 0 = Benign
+        val mlHighConf = mlResult.confidence > 0.6f
+        
+        return when {
+            // If heuristic says HIGH, keep HIGH
+            heuristicRisk == "HIGH" -> "HIGH"
+            // If ML confidently says malware and heuristic is at least MEDIUM, upgrade to HIGH
+            mlIsMalware && mlHighConf && heuristicRisk == "MEDIUM" -> "HIGH"
+            // If ML confidently says malware, at least MEDIUM
+            mlIsMalware && mlHighConf -> "MEDIUM"
+            // If heuristic says MEDIUM, keep MEDIUM
+            heuristicRisk == "MEDIUM" -> "MEDIUM"
+            // If ML says malware with lower confidence, bump to MEDIUM
+            mlIsMalware && mlResult.confidence > 0.4f -> "MEDIUM"
+            // Otherwise keep heuristic
+            else -> heuristicRisk
         }
     }
 
@@ -249,6 +310,46 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to get malware analysis: ${e.message}")
+        }
+    }
+
+    /**
+     * Get standalone ML analysis for an app
+     * Called from React Native: BehaviorModule.getMLAnalysis(packageName)
+     */
+    @ReactMethod
+    fun getMLAnalysis(packageName: String, promise: Promise) {
+        try {
+            val features = featureExtractor.extractFeatures(packageName)
+            val mlResult = mlClassifier.predict(features)
+            val result: WritableMap = Arguments.createMap()
+
+            result.putString("packageName", packageName)
+            result.putString("prediction", mlResult.predictedLabel)
+            result.putInt("classIndex", mlResult.predictedClass)
+            result.putDouble("confidence", mlResult.confidence.toDouble())
+
+            // Probabilities for all 5 classes
+            val probMap: WritableMap = Arguments.createMap()
+            OnnxMalwareClassifier.CLASS_LABELS.forEachIndexed { idx, label ->
+                probMap.putDouble(label, mlResult.probabilities[idx].toDouble())
+            }
+            result.putMap("probabilities", probMap)
+
+            // ML risk level mapping
+            val mlRisk = when {
+                mlResult.predictedClass == 0 -> "LOW"   // Benign
+                mlResult.confidence > 0.7f -> "HIGH"     // High confidence malware
+                mlResult.confidence > 0.4f -> "MEDIUM"   // Medium confidence
+                else -> "LOW"                             // Low confidence
+            }
+            result.putString("riskLevel", mlRisk)
+            result.putBoolean("isBenign", mlResult.predictedClass == 0)
+            result.putDouble("scanTimestamp", System.currentTimeMillis().toDouble())
+
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("ERROR", "Failed to get ML analysis: ${e.message}")
         }
     }
 

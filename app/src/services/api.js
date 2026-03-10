@@ -245,6 +245,26 @@ export const getMalwareAnalysis = async (packageName) => {
     }
 };
 
+/**
+ * Get ML-based malware classification for an app
+ * Uses the CICMalDroid XGBoost ONNX model for on-device inference
+ * @param {string} packageName - Package name to analyze
+ * @returns {Promise<Object>} - ML classification result
+ */
+export const getMLAnalysis = async (packageName) => {
+    try {
+        if (Platform.OS === 'android' && BehaviorModule) {
+            const analysis = await BehaviorModule.getMLAnalysis(packageName);
+            return analysis;
+        }
+        // Mock ML analysis for non-Android
+        return getMockMLAnalysis();
+    } catch (error) {
+        console.error('Get ML Analysis Error:', error);
+        return getMockMLAnalysis();
+    }
+};
+
 // Helper: Get mock permissions
 const getMockPermissions = () => [
     { permission: 'android.permission.CAMERA', shortName: 'Camera', riskLevel: 'HIGH', category: 'Privacy', description: 'Access device camera', icon: 'camera' },
@@ -265,6 +285,24 @@ const getMockMalwareAnalysis = () => ({
     isSafe: true,
     indicators: [],
     suspiciousPermissions: [],
+});
+
+// Helper: Get mock ML analysis
+const getMockMLAnalysis = () => ({
+    packageName: 'com.example.app',
+    prediction: 'Benign',
+    classIndex: 0,
+    confidence: 0.85,
+    probabilities: {
+        Benign: 0.85,
+        Adware: 0.05,
+        Banking: 0.03,
+        SMS: 0.02,
+        Riskware: 0.05,
+    },
+    riskLevel: 'LOW',
+    isBenign: true,
+    scanTimestamp: Date.now(),
 });
 
 // Helper: Get mock scan result

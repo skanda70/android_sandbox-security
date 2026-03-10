@@ -18,7 +18,7 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, RISK_LEVELS, ACTION_STATUS, FILE_TYPE_ICONS } from '../utils/constants';
 import RiskBadge from '../components/RiskBadge';
-import { getDetailedPermissions, getMalwareAnalysis } from '../services/api';
+import { getDetailedPermissions, getMalwareAnalysis, getMLAnalysis } from '../services/api';
 
 /**
  * Scan Result Screen - SOC-style alert report
@@ -28,6 +28,7 @@ const ScanResultScreen = ({ route, navigation }) => {
     const { file, result } = route.params;
     const [permissions, setPermissions] = useState([]);
     const [malwareAnalysis, setMalwareAnalysis] = useState(null);
+    const [mlAnalysis, setMlAnalysis] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showAllPermissions, setShowAllPermissions] = useState(false);
 
@@ -42,12 +43,14 @@ const ScanResultScreen = ({ route, navigation }) => {
         try {
             const packageName = file.packageName || result.packageName;
             if (packageName) {
-                const [perms, malware] = await Promise.all([
+                const [perms, malware, ml] = await Promise.all([
                     getDetailedPermissions(packageName),
                     getMalwareAnalysis(packageName),
+                    getMLAnalysis(packageName),
                 ]);
                 setPermissions(perms);
                 setMalwareAnalysis(malware);
+                setMlAnalysis(ml);
             }
         } catch (error) {
             console.error('Failed to fetch detailed data:', error);
@@ -282,6 +285,141 @@ const ScanResultScreen = ({ route, navigation }) => {
                                 />
                             </View>
                         </View>
+                    </View>
+                </View>
+
+                {/* ML Classification Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>ML Classification</Text>
+                    <View style={styles.card}>
+                        {loading ? (
+                            <ActivityIndicator color={COLORS.secondary} />
+                        ) : mlAnalysis || result.mlAvailable ? (
+                            <>
+                                {/* ML Prediction Badge */}
+                                <View style={styles.mlPredictionRow}>
+                                    <View style={styles.mlIconContainer}>
+                                        <MaterialCommunityIcons
+                                            name="brain"
+                                            size={24}
+                                            color={COLORS.secondary}
+                                        />
+                                    </View>
+                                    <View style={styles.mlPredictionInfo}>
+                                        <Text style={styles.mlPredictionLabel}>CICMalDroid XGBoost Model</Text>
+                                        <View style={styles.mlPredictionBadgeRow}>
+                                            <View style={[
+                                                styles.mlPredictionBadge,
+                                                {
+                                                    backgroundColor:
+                                                        (result.mlPrediction || (mlAnalysis && mlAnalysis.prediction)) === 'Benign'
+                                                            ? COLORS.riskLow + '20'
+                                                            : COLORS.riskHigh + '20',
+                                                }
+                                            ]}>
+                                                <Text style={[
+                                                    styles.mlPredictionBadgeText,
+                                                    {
+                                                        color:
+                                                            (result.mlPrediction || (mlAnalysis && mlAnalysis.prediction)) === 'Benign'
+                                                                ? COLORS.riskLow
+                                                                : COLORS.riskHigh,
+                                                    }
+                                                ]}>
+                                                    {result.mlPrediction || (mlAnalysis && mlAnalysis.prediction) || 'N/A'}
+                                                </Text>
+                                            </View>
+                                            <Text style={styles.mlConfText}>
+                                                {Math.round((result.mlConfidence || (mlAnalysis && mlAnalysis.confidence) || 0) * 100)}% confidence
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                <View style={styles.divider} />
+
+                                {/* ML Confidence Bar */}
+                                <View style={styles.confidenceSection}>
+                                    <View style={styles.confidenceHeader}>
+                                        <Text style={styles.assessmentLabel}>ML Confidence</Text>
+                                        <Text style={styles.confidenceValue}>
+                                            {Math.round((result.mlConfidence || (mlAnalysis && mlAnalysis.confidence) || 0) * 100)}%
+                                        </Text>
+                                    </View>
+                                    <View style={styles.progressBar}>
+                                        <View
+                                            style={[
+                                                styles.progressFill,
+                                                {
+                                                    width: `${Math.round((result.mlConfidence || (mlAnalysis && mlAnalysis.confidence) || 0) * 100)}%`,
+                                                    backgroundColor:
+                                                        (result.mlPrediction || (mlAnalysis && mlAnalysis.prediction)) === 'Benign'
+                                                            ? COLORS.riskLow
+                                                            : COLORS.riskHigh,
+                                                }
+                                            ]}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.divider} />
+
+                                {/* Class Probabilities */}
+                                <Text style={styles.explanationTitle}>Class Probabilities</Text>
+                                {(() => {
+                                    const probs = result.mlProbabilities || (mlAnalysis && mlAnalysis.probabilities) || {};
+                                    const classColors = {
+                                        Benign: COLORS.riskLow,
+                                        Adware: COLORS.riskMedium,
+                                        Banking: COLORS.riskHigh,
+                                        SMS: COLORS.riskHigh,
+                                        Riskware: COLORS.riskMedium,
+                                    };
+                                    return ['Benign', 'Adware', 'Banking', 'SMS', 'Riskware'].map((cls) => {
+                                        const prob = probs[cls] || 0;
+                                        const pct = Math.round(prob * 100);
+                                        return (
+                                            <View key={cls} style={styles.mlProbRow}>
+                                                <Text style={styles.mlProbLabel}>{cls}</Text>
+                                                <View style={styles.mlProbBarContainer}>
+                                                    <View style={[
+                                                        styles.mlProbBar,
+                                                        {
+                                                            width: `${Math.max(pct, 2)}%`,
+                                                            backgroundColor: classColors[cls] || COLORS.textMuted,
+                                                        }
+                                                    ]} />
+                                                </View>
+                                                <Text style={styles.mlProbValue}>{pct}%</Text>
+                                            </View>
+                                        );
+                                    });
+                                })()}
+
+                                {/* Hybrid Analysis Indicator */}
+                                {result.hybridRisk && (
+                                    <>
+                                        <View style={styles.divider} />
+                                        <View style={styles.mlHybridRow}>
+                                            <MaterialCommunityIcons
+                                                name="shield-half-full"
+                                                size={18}
+                                                color={COLORS.secondary}
+                                            />
+                                            <Text style={styles.mlHybridText}>
+                                                Hybrid Analysis: Heuristic + ML → 
+                                            </Text>
+                                            <RiskBadge risk={result.hybridRisk} style={styles.mlHybridBadge} />
+                                        </View>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            <View style={styles.mlUnavailable}>
+                                <MaterialCommunityIcons name="brain" size={24} color={COLORS.textMuted} />
+                                <Text style={styles.mlUnavailableText}>ML analysis not available</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -952,6 +1090,100 @@ const styles = StyleSheet.create({
     riskScoreFill: {
         height: '100%',
         borderRadius: 3,
+    },
+    // ML Classification styles
+    mlPredictionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mlIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: COLORS.secondary + '15',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+    },
+    mlPredictionInfo: {
+        flex: 1,
+    },
+    mlPredictionLabel: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginBottom: 4,
+    },
+    mlPredictionBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mlPredictionBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+        marginRight: 8,
+    },
+    mlPredictionBadgeText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    mlConfText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+    },
+    mlProbRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    mlProbLabel: {
+        width: 70,
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        fontWeight: '500',
+    },
+    mlProbBarContainer: {
+        flex: 1,
+        height: 8,
+        backgroundColor: COLORS.surface,
+        borderRadius: 4,
+        overflow: 'hidden',
+        marginHorizontal: 8,
+    },
+    mlProbBar: {
+        height: '100%',
+        borderRadius: 4,
+    },
+    mlProbValue: {
+        width: 36,
+        fontSize: 12,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        textAlign: 'right',
+    },
+    mlHybridRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mlHybridText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        marginLeft: 6,
+    },
+    mlHybridBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+    mlUnavailable: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+    },
+    mlUnavailableText: {
+        fontSize: 13,
+        color: COLORS.textMuted,
+        marginLeft: 8,
     },
 });
 
