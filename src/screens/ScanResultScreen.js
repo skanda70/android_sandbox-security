@@ -1,0 +1,1187 @@
+// ScanResultScreen
+// Displays security assessment results in SOC-style alert report format
+// with permission breakdown, threat details, and action buttons
+
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    SafeAreaView,
+    TouchableOpacity,
+    ActivityIndicator,
+    Alert,
+    Image,
+    NativeModules,
+} from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { COLORS, RISK_LEVELS, ACTION_STATUS, FILE_TYPE_ICONS } from '../utils/constants';
+import RiskBadge from '../components/RiskBadge';
+import { getDetailedPermissions, getMalwareAnalysis, getMLAnalysis } from '../services/api';
+
+/**
+ * Scan Result Screen - SOC-style alert report
+ * Shows file details, risk assessment, confidence, permissions, threats, and action buttons
+ */
+const ScanResultScreen = ({ route, navigation }) => {
+    const { file, result } = route.params;
+    const [permissions, setPermissions] = useState([]);
+    const [malwareAnalysis, setMalwareAnalysis] = useState(null);
+    const [mlAnalysis, setMlAnalysis] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [showAllPermissions, setShowAllPermissions] = useState(false);
+
+    const { BehaviorModule } = NativeModules;
+
+    // Fetch detailed data on mount
+    useEffect(() => {
+        fetchDetailedData();
+    }, []);
+
+    const fetchDetailedData = async () => {
+        try {
+            const packageName = file.packageName || result.packageName;
+            if (packageName) {
+                const [perms, malware, ml] = await Promise.all([
+                    getDetailedPermissions(packageName),
+                    getMalwareAnalysis(packageName),
+                    getMLAnalysis(packageName),
+                ]);
+                setPermissions(perms);
+                setMalwareAnalysis(malware);
+                setMlAnalysis(ml);
+            }
+        } catch (error) {
+            console.error('Failed to fetch detailed data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Get action status color
+    const getActionColor = (action) => {
+        switch (action) {
+            case ACTION_STATUS.ALLOWED:
+                return COLORS.actionAllowed;
+            case ACTION_STATUS.RESTRICTED:
+                return COLORS.actionRestricted;
+            case ACTION_STATUS.BLOCKED:
+                return COLORS.actionBlocked;
+            default:
+                return COLORS.textMuted;
+        }
+    };
+
+    // Get action status icon
+    const getActionIcon = (action) => {
+        switch (action) {
+            case ACTION_STATUS.ALLOWED:
+                return '✅';
+            case ACTION_STATUS.RESTRICTED:
+                return '⚠️';
+            case ACTION_STATUS.BLOCKED:
+                return '🚫';
+            default:
+                return '❓';
+        }
+    };
+
+    // Get file icon
+    const getFileIcon = (fileType) => {
+        return FILE_TYPE_ICONS[fileType] || FILE_TYPE_ICONS.unknown;
+    };
+
+    // Get risk level color
+    const getRiskColor = (riskLevel) => {
+        switch (riskLevel) {
+            case 'HIGH':
+                return COLORS.riskHigh;
+            case 'MEDIUM':
+                return COLORS.riskMedium;
+            case 'LOW':
+                return COLORS.riskLow;
+            default:
+                return COLORS.textMuted;
+        }
+    };
+
+    // Get permission icon name
+    const getPermissionIcon = (iconName) => {
+        const iconMap = {
+            camera: 'camera',
+            microphone: 'microphone',
+            location: 'map-marker',
+            contacts: 'contacts',
+            storage: 'folder',
+            phone: 'phone',
+            sms: 'message-text',
+            calendar: 'calendar',
+            network: 'wifi',
+            web: 'web',
+            'map-marker': 'map-marker',
+        };
+        return iconMap[iconName] || 'shield-alert';
+    };
+
+    // Handle uninstall app
+    const handleUninstall = () => {
+        const packageName = file.packageName || result.packageName;
+        if (packageName && BehaviorModule) {
+            Alert.alert(
+                'Uninstall App',
+                `Are you sure you want to uninstall ${file.fileName}?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Uninstall',
+                        style: 'destructive',
+                        onPress: async () => {
+                            try {
+                                await BehaviorModule.uninstallApp(packageName);
+                            } catch (error) {
+                                Alert.alert('Error', 'Unable to uninstall. Please go to Settings > Apps to uninstall manually.');
+                            }
+                        },
+                    },
+                ]
+            );
+        }
+    };
+
+    // Handle open app settings
+    const handleOpenSettings = async () => {
+        const packageName = file.packageName || result.packageName;
+        if (packageName && BehaviorModule) {
+            try {
+                await BehaviorModule.openAppSettings(packageName);
+            } catch (error) {
+                Alert.alert('Error', 'Unable to open app settings.');
+            }
+        }
+    };
+
+    // Generate threat explanation
+    const getThreatExplanation = () => {
+        const explanations = [];
+
+        if (result.risk === RISK_LEVELS.HIGH) {
+            explanations.push('This app has requested multiple high-risk permissions that could compromise your privacy.');
+        } else if (result.risk === RISK_LEVELS.MEDIUM) {
+            explanations.push('This app has some permissions that may pose moderate privacy risks.');
+        }
+
+        if (malwareAnalysis) {
+            if (malwareAnalysis.suspiciousNameMatch) {
+                explanations.push('The app name matches known suspicious patterns.');
+            }
+            if (malwareAnalysis.matchedComboCount > 0) {
+                explanations.push(`Detected ${malwareAnalysis.matchedComboCount} suspicious permission combinations.`);
+            }
+            if (malwareAnalysis.indicators && malwareAnalysis.indicators.length > 0) {
+                explanations.push('Behavioral indicators suggest potential malicious activity.');
+            }
+        }
+
+        const highRiskPerms = permissions.filter(p => p.riskLevel === 'HIGH');
+        if (highRiskPerms.length > 0) {
+            const permNames = highRiskPerms.slice(0, 3).map(p => p.shortName).join(', ');
+            explanations.push(`High-risk permissions detected: ${permNames}.`);
+        }
+
+        if (explanations.length === 0) {
+            explanations.push('This app appears to be safe with no significant security concerns.');
+        }
+
+        return explanations;
+    };
+
+    // Format confidence percentage
+    const confidencePercent = Math.round(result.confidence * 100);
+
+    // Group permissions by risk level
+    const highRiskPerms = permissions.filter(p => p.riskLevel === 'HIGH');
+    const mediumRiskPerms = permissions.filter(p => p.riskLevel === 'MEDIUM');
+    const lowRiskPerms = permissions.filter(p => p.riskLevel === 'LOW');
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.headerIcon}>📋</Text>
+                    <Text style={styles.headerTitle}>Security Report</Text>
+                    <Text style={styles.headerSubtitle}>File Analysis Complete</Text>
+                </View>
+
+                {/* File Details Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>File Details</Text>
+                    <View style={styles.card}>
+                        <View style={styles.fileHeader}>
+                            {file.iconBase64 ? (
+                                <Image
+                                    source={{ uri: `data:image/png;base64,${file.iconBase64}` }}
+                                    style={styles.appIcon}
+                                />
+                            ) : (
+                                <Text style={styles.fileIcon}>{getFileIcon(file.fileType)}</Text>
+                            )}
+                            <View style={styles.fileInfo}>
+                                <Text style={styles.fileName}>{file.fileName}</Text>
+                                <Text style={styles.fileHash} numberOfLines={1}>
+                                    Hash: {file.hash}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <View style={styles.detailsGrid}>
+                            <View style={styles.detailItem}>
+                                <Text style={styles.detailLabel}>File Type</Text>
+                                <Text style={styles.detailValue}>{file.fileType.toUpperCase()}</Text>
+                            </View>
+                            <View style={styles.detailItem}>
+                                <Text style={styles.detailLabel}>File Size</Text>
+                                <Text style={styles.detailValue}>{file.fileSize}</Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Security Assessment Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Security Assessment</Text>
+
+                    {/* Risk Level Card */}
+                    <View style={styles.card}>
+                        <View style={styles.assessmentRow}>
+                            <Text style={styles.assessmentLabel}>Risk Level</Text>
+                            <RiskBadge risk={result.risk} style={styles.riskBadge} />
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Confidence Bar */}
+                        <View style={styles.confidenceSection}>
+                            <View style={styles.confidenceHeader}>
+                                <Text style={styles.assessmentLabel}>Detection Confidence</Text>
+                                <Text style={styles.confidenceValue}>{confidencePercent}%</Text>
+                            </View>
+                            <View style={styles.progressBar}>
+                                <View
+                                    style={[
+                                        styles.progressFill,
+                                        {
+                                            width: `${confidencePercent}%`,
+                                            backgroundColor: getActionColor(result.action),
+                                        }
+                                    ]}
+                                />
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* ML Classification Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>ML Classification</Text>
+                    <View style={styles.card}>
+                        {loading ? (
+                            <ActivityIndicator color={COLORS.secondary} />
+                        ) : mlAnalysis || result.mlAvailable ? (
+                            <>
+                                {/* ML Prediction Badge */}
+                                <View style={styles.mlPredictionRow}>
+                                    <View style={styles.mlIconContainer}>
+                                        <MaterialCommunityIcons
+                                            name="brain"
+                                            size={24}
+                                            color={COLORS.secondary}
+                                        />
+                                    </View>
+                                    <View style={styles.mlPredictionInfo}>
+                                        <Text style={styles.mlPredictionLabel}>EMBER2024 Model</Text>
+                                        <View style={styles.mlPredictionBadgeRow}>
+                                            <View style={[
+                                                styles.mlPredictionBadge,
+                                                {
+                                                    backgroundColor:
+                                                        (result.mlPrediction || (mlAnalysis && mlAnalysis.prediction)) === 'Benign'
+                                                            ? COLORS.riskLow + '20'
+                                                            : COLORS.riskHigh + '20',
+                                                }
+                                            ]}>
+                                                <Text style={[
+                                                    styles.mlPredictionBadgeText,
+                                                    {
+                                                        color:
+                                                            (result.mlPrediction || (mlAnalysis && mlAnalysis.prediction)) === 'Benign'
+                                                                ? COLORS.riskLow
+                                                                : COLORS.riskHigh,
+                                                    }
+                                                ]}>
+                                                    {result.mlPrediction || (mlAnalysis && mlAnalysis.prediction) || 'N/A'}
+                                                </Text>
+                                            </View>
+                                            <Text style={styles.mlConfText}>
+                                                {Math.round((result.mlConfidence || (mlAnalysis && mlAnalysis.confidence) || 0) * 100)}% confidence
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                <View style={styles.divider} />
+
+                                {/* ML Confidence Bar */}
+                                <View style={styles.confidenceSection}>
+                                    <View style={styles.confidenceHeader}>
+                                        <Text style={styles.assessmentLabel}>ML Confidence</Text>
+                                        <Text style={styles.confidenceValue}>
+                                            {Math.round((result.mlConfidence || (mlAnalysis && mlAnalysis.confidence) || 0) * 100)}%
+                                        </Text>
+                                    </View>
+                                    <View style={styles.progressBar}>
+                                        <View
+                                            style={[
+                                                styles.progressFill,
+                                                {
+                                                    width: `${Math.round((result.mlConfidence || (mlAnalysis && mlAnalysis.confidence) || 0) * 100)}%`,
+                                                    backgroundColor:
+                                                        (result.mlPrediction || (mlAnalysis && mlAnalysis.prediction)) === 'Benign'
+                                                            ? COLORS.riskLow
+                                                            : COLORS.riskHigh,
+                                                }
+                                            ]}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.divider} />
+
+                                {/* Class Probabilities */}
+                                <Text style={styles.explanationTitle}>Class Probabilities</Text>
+                                {(() => {
+                                    const probs = result.mlProbabilities || (mlAnalysis && mlAnalysis.probabilities) || {};
+                                    const classColors = {
+                                        Benign: COLORS.riskLow,
+                                        Malicious: COLORS.riskHigh,
+                                    };
+                                    return ['Benign', 'Malicious'].map((cls) => {
+                                        const prob = probs[cls] || 0;
+                                        const pct = Math.round(prob * 100);
+                                        return (
+                                            <View key={cls} style={styles.mlProbRow}>
+                                                <Text style={styles.mlProbLabel}>{cls}</Text>
+                                                <View style={styles.mlProbBarContainer}>
+                                                    <View style={[
+                                                        styles.mlProbBar,
+                                                        {
+                                                            width: `${Math.max(pct, 2)}%`,
+                                                            backgroundColor: classColors[cls] || COLORS.textMuted,
+                                                        }
+                                                    ]} />
+                                                </View>
+                                                <Text style={styles.mlProbValue}>{pct}%</Text>
+                                            </View>
+                                        );
+                                    });
+                                })()}
+
+                                {/* Hybrid Analysis Indicator */}
+                                {result.hybridRisk && (
+                                    <>
+                                        <View style={styles.divider} />
+                                        <View style={styles.mlHybridRow}>
+                                            <MaterialCommunityIcons
+                                                name="shield-half-full"
+                                                size={18}
+                                                color={COLORS.secondary}
+                                            />
+                                            <Text style={styles.mlHybridText}>
+                                                Hybrid Analysis: Heuristic + ML → 
+                                            </Text>
+                                            <RiskBadge risk={result.hybridRisk} style={styles.mlHybridBadge} />
+                                        </View>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            <View style={styles.mlUnavailable}>
+                                <MaterialCommunityIcons name="brain" size={24} color={COLORS.textMuted} />
+                                <Text style={styles.mlUnavailableText}>ML analysis not available</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* App Information Section - Deep Scan Details */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>App Information</Text>
+                    <View style={styles.card}>
+                        {/* Installation Source */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons
+                                    name={result.isFromPlayStore ? 'google-play' : (result.isSideloaded ? 'download' : 'store')}
+                                    size={20}
+                                    color={result.isFromPlayStore ? COLORS.riskLow : (result.isSideloaded ? COLORS.riskMedium : COLORS.textSecondary)}
+                                />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Installation Source</Text>
+                                <Text style={[styles.infoValue, { color: result.isFromPlayStore ? COLORS.riskLow : (result.isSideloaded ? COLORS.riskMedium : COLORS.textPrimary) }]}>
+                                    {result.isFromPlayStore ? '✓ Google Play Store' : (result.isSideloaded ? '⚠ Sideloaded' : 'Third-Party Store')}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Trust Status */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons
+                                    name={result.isTrusted ? 'shield-check' : 'shield-outline'}
+                                    size={20}
+                                    color={result.isTrusted ? COLORS.riskLow : COLORS.textSecondary}
+                                />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Publisher Status</Text>
+                                <Text style={[styles.infoValue, { color: result.isTrusted ? COLORS.riskLow : COLORS.textPrimary }]}>
+                                    {result.isTrusted ? '✓ Verified Publisher' : 'Unverified Publisher'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* App Category */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="tag" size={20} color={COLORS.secondary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Category</Text>
+                                <Text style={styles.infoValue}>
+                                    {result.appCategory ? result.appCategory.charAt(0).toUpperCase() + result.appCategory.slice(1) : 'Unknown'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Target SDK */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="android" size={20} color={COLORS.secondary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Target Android SDK</Text>
+                                <Text style={styles.infoValue}>
+                                    {result.targetSdk ? `API ${result.targetSdk}` : 'Unknown'}
+                                    {result.targetSdk && result.targetSdk < 29 ? ' (Outdated)' : ''}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Risk Score */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="speedometer" size={20} color={getRiskColor(result.risk)} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Risk Score</Text>
+                                <View style={styles.riskScoreContainer}>
+                                    <Text style={[styles.infoValue, { color: getRiskColor(result.risk) }]}>
+                                        {result.riskScore !== undefined ? result.riskScore : '—'}/100
+                                    </Text>
+                                    <View style={styles.riskScoreBar}>
+                                        <View style={[styles.riskScoreFill, {
+                                            width: `${result.riskScore || 0}%`,
+                                            backgroundColor: getRiskColor(result.risk)
+                                        }]} />
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Permissions Summary */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="lock" size={20} color={COLORS.secondary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Permissions</Text>
+                                <Text style={styles.infoValue}>
+                                    {result.permissionCount || permissions.length || 0} total
+                                    {result.highRiskPerms > 0 && <Text style={{ color: COLORS.riskHigh }}> ({result.highRiskPerms} high-risk)</Text>}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Package Name */}
+                        <View style={styles.divider} />
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoIconContainer}>
+                                <MaterialCommunityIcons name="package-variant" size={20} color={COLORS.textMuted} />
+                            </View>
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Package Name</Text>
+                                <Text style={[styles.infoValue, styles.packageNameText]} numberOfLines={1}>
+                                    {file.packageName || result.packageName || 'Unknown'}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Threat Details Section - Only show for MEDIUM and HIGH risk apps */}
+                {result.risk !== 'LOW' && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Threat Analysis</Text>
+                        <View style={styles.card}>
+                            {loading ? (
+                                <ActivityIndicator color={COLORS.secondary} />
+                            ) : (
+                                <>
+                                    {malwareAnalysis && (
+                                        <View style={styles.threatScoreRow}>
+                                            <View style={styles.threatScoreCircle}>
+                                                <Text style={styles.threatScoreValue}>{malwareAnalysis.threatScore}</Text>
+                                                <Text style={styles.threatScoreLabel}>Score</Text>
+                                            </View>
+                                            <View style={styles.threatInfo}>
+                                                <Text style={[styles.threatLevel, { color: getRiskColor(malwareAnalysis.threatLevel) }]}>
+                                                    {malwareAnalysis.threatLevel} THREAT
+                                                </Text>
+                                                <Text style={styles.threatStatus}>
+                                                    {malwareAnalysis.isSafe ? '✓ App appears safe' : '⚠ Potential risks detected'}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    )}
+                                    <View style={styles.divider} />
+                                    <Text style={styles.explanationTitle}>Why this assessment?</Text>
+                                    {getThreatExplanation().map((explanation, index) => (
+                                        <View key={index} style={styles.explanationRow}>
+                                            <MaterialCommunityIcons
+                                                name={result.risk === RISK_LEVELS.LOW ? 'check-circle' : 'alert-circle'}
+                                                size={16}
+                                                color={result.risk === RISK_LEVELS.LOW ? COLORS.riskLow : COLORS.riskMedium}
+                                            />
+                                            <Text style={styles.explanationText}>{explanation}</Text>
+                                        </View>
+                                    ))}
+                                </>
+                            )}
+                        </View>
+                    </View>
+                )}
+
+                {/* Permission Breakdown Section - Only show for MEDIUM and HIGH risk apps */}
+                {result.risk !== 'LOW' && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Permission Breakdown</Text>
+                        <View style={styles.card}>
+                            {loading ? (
+                                <ActivityIndicator color={COLORS.secondary} />
+                            ) : permissions.length === 0 ? (
+                                <Text style={styles.noPermissions}>No special permissions required</Text>
+                            ) : (
+                                <>
+                                    {/* Permission Stats */}
+                                    <View style={styles.permissionStats}>
+                                        <View style={[styles.permStat, { backgroundColor: COLORS.riskHigh + '20' }]}>
+                                            <Text style={[styles.permStatNum, { color: COLORS.riskHigh }]}>{highRiskPerms.length}</Text>
+                                            <Text style={styles.permStatLabel}>High</Text>
+                                        </View>
+                                        <View style={[styles.permStat, { backgroundColor: COLORS.riskMedium + '20' }]}>
+                                            <Text style={[styles.permStatNum, { color: COLORS.riskMedium }]}>{mediumRiskPerms.length}</Text>
+                                            <Text style={styles.permStatLabel}>Medium</Text>
+                                        </View>
+                                        <View style={[styles.permStat, { backgroundColor: COLORS.riskLow + '20' }]}>
+                                            <Text style={[styles.permStatNum, { color: COLORS.riskLow }]}>{lowRiskPerms.length}</Text>
+                                            <Text style={styles.permStatLabel}>Low</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.divider} />
+
+                                    {/* Permission List */}
+                                    {(showAllPermissions ? permissions : permissions.slice(0, 8)).map((perm, index) => (
+                                        <View key={index} style={styles.permissionRow}>
+                                            <View style={[styles.permIcon, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
+                                                <MaterialCommunityIcons
+                                                    name={getPermissionIcon(perm.icon)}
+                                                    size={18}
+                                                    color={getRiskColor(perm.riskLevel)}
+                                                />
+                                            </View>
+                                            <View style={styles.permInfo}>
+                                                <Text style={styles.permName}>{perm.shortName}</Text>
+                                                <Text style={styles.permDesc} numberOfLines={1}>{perm.description}</Text>
+                                            </View>
+                                            <View style={[styles.permRiskBadge, { backgroundColor: getRiskColor(perm.riskLevel) + '20' }]}>
+                                                <Text style={[styles.permRiskText, { color: getRiskColor(perm.riskLevel) }]}>
+                                                    {perm.riskLevel}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                    {permissions.length > 8 && (
+                                        <TouchableOpacity
+                                            style={styles.morePermsButton}
+                                            onPress={() => setShowAllPermissions(!showAllPermissions)}
+                                        >
+                                            <Text style={styles.morePermsText}>
+                                                {showAllPermissions
+                                                    ? 'Show Less'
+                                                    : `+${permissions.length - 8} more permissions`}
+                                            </Text>
+                                            <MaterialCommunityIcons
+                                                name={showAllPermissions ? 'chevron-up' : 'chevron-down'}
+                                                size={18}
+                                                color={COLORS.secondary}
+                                            />
+                                        </TouchableOpacity>
+                                    )}
+                                </>
+                            )}
+                        </View>
+                    </View>
+                )}
+
+                {/* Action Buttons Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Actions</Text>
+                    <View style={styles.actionButtonsContainer}>
+                        <TouchableOpacity
+                            style={[styles.actionButton, styles.settingsButton]}
+                            onPress={handleOpenSettings}
+                        >
+                            <MaterialCommunityIcons name="cog" size={20} color={COLORS.secondary} />
+                            <Text style={styles.settingsButtonText}>App Settings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.actionButton, styles.uninstallButton]}
+                            onPress={handleUninstall}
+                        >
+                            <MaterialCommunityIcons name="delete" size={20} color={COLORS.riskHigh} />
+                            <Text style={styles.uninstallButtonText}>Uninstall</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Back Button */}
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Text style={styles.backButtonText}>← Back to Home</Text>
+                </TouchableOpacity>
+            </ScrollView>
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingBottom: 30,
+    },
+    header: {
+        alignItems: 'center',
+        paddingTop: 24,
+        paddingBottom: 20,
+    },
+    headerIcon: {
+        fontSize: 36,
+        marginBottom: 10,
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: COLORS.textPrimary,
+    },
+    headerSubtitle: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginTop: 4,
+    },
+    section: {
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textSecondary,
+        marginBottom: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    card: {
+        backgroundColor: COLORS.card,
+        borderRadius: 16,
+        padding: 18,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        marginBottom: 12,
+    },
+    fileHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    fileIcon: {
+        fontSize: 32,
+        marginRight: 14,
+    },
+    appIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 10,
+        marginRight: 14,
+    },
+    fileInfo: {
+        flex: 1,
+    },
+    fileName: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        marginBottom: 4,
+    },
+    fileHash: {
+        fontSize: 11,
+        color: COLORS.textMuted,
+        fontFamily: 'monospace',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: COLORS.divider,
+        marginVertical: 14,
+    },
+    detailsGrid: {
+        flexDirection: 'row',
+    },
+    detailItem: {
+        flex: 1,
+    },
+    detailLabel: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginBottom: 4,
+    },
+    detailValue: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    assessmentRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    assessmentLabel: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+    },
+    riskBadge: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+    },
+    confidenceSection: {
+        marginTop: 4,
+    },
+    confidenceHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    confidenceValue: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+    },
+    progressBar: {
+        height: 10,
+        backgroundColor: COLORS.surface,
+        borderRadius: 5,
+        overflow: 'hidden',
+    },
+    progressFill: {
+        height: '100%',
+        borderRadius: 5,
+    },
+    actionCard: {
+        borderWidth: 2,
+    },
+    actionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    actionIcon: {
+        fontSize: 28,
+        marginRight: 14,
+    },
+    actionLabel: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginBottom: 2,
+    },
+    actionValue: {
+        fontSize: 20,
+        fontWeight: '800',
+        letterSpacing: 1,
+    },
+    actionDescription: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        lineHeight: 18,
+    },
+    // Threat Analysis styles
+    threatScoreRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    threatScoreCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: COLORS.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    threatScoreValue: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: COLORS.textPrimary,
+    },
+    threatScoreLabel: {
+        fontSize: 10,
+        color: COLORS.textMuted,
+    },
+    threatInfo: {
+        flex: 1,
+    },
+    threatLevel: {
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    threatStatus: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    explanationTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginBottom: 10,
+    },
+    explanationRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: 8,
+    },
+    explanationText: {
+        flex: 1,
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        marginLeft: 8,
+        lineHeight: 18,
+    },
+    // Permission styles
+    noPermissions: {
+        fontSize: 14,
+        color: COLORS.textMuted,
+        textAlign: 'center',
+        paddingVertical: 20,
+    },
+    permissionStats: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    permStat: {
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+    },
+    permStatNum: {
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    permStatLabel: {
+        fontSize: 11,
+        color: COLORS.textMuted,
+        marginTop: 2,
+    },
+    permissionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.divider,
+    },
+    permIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    permInfo: {
+        flex: 1,
+    },
+    permName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    permDesc: {
+        fontSize: 11,
+        color: COLORS.textMuted,
+        marginTop: 2,
+    },
+    permRiskBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    permRiskText: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    morePerms: {
+        fontSize: 12,
+        color: COLORS.secondary,
+        textAlign: 'center',
+        marginTop: 10,
+    },
+    morePermsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        marginTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.divider,
+    },
+    morePermsText: {
+        fontSize: 13,
+        color: COLORS.secondary,
+        fontWeight: '600',
+        marginRight: 4,
+    },
+    // Action buttons styles
+    actionButtonsContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    actionButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    settingsButton: {
+        backgroundColor: COLORS.secondary + '15',
+        borderColor: COLORS.secondary,
+    },
+    settingsButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.secondary,
+        marginLeft: 8,
+    },
+    uninstallButton: {
+        backgroundColor: COLORS.riskHigh + '15',
+        borderColor: COLORS.riskHigh,
+    },
+    uninstallButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.riskHigh,
+        marginLeft: 8,
+    },
+    backButton: {
+        alignItems: 'center',
+        paddingVertical: 16,
+        marginTop: 10,
+    },
+    backButtonText: {
+        fontSize: 15,
+        color: COLORS.secondary,
+        fontWeight: '600',
+    },
+    // App Information section styles
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    infoIconContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: COLORS.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    infoContent: {
+        flex: 1,
+    },
+    infoLabel: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginBottom: 2,
+    },
+    infoValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    packageNameText: {
+        fontSize: 11,
+        fontFamily: 'monospace',
+        color: COLORS.textSecondary,
+    },
+    riskScoreContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    riskScoreBar: {
+        flex: 1,
+        height: 6,
+        backgroundColor: COLORS.surface,
+        borderRadius: 3,
+        marginLeft: 10,
+        overflow: 'hidden',
+    },
+    riskScoreFill: {
+        height: '100%',
+        borderRadius: 3,
+    },
+    // ML Classification styles
+    mlPredictionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mlIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: COLORS.secondary + '15',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+    },
+    mlPredictionInfo: {
+        flex: 1,
+    },
+    mlPredictionLabel: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        marginBottom: 4,
+    },
+    mlPredictionBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mlPredictionBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+        marginRight: 8,
+    },
+    mlPredictionBadgeText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    mlConfText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+    },
+    mlProbRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    mlProbLabel: {
+        width: 70,
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        fontWeight: '500',
+    },
+    mlProbBarContainer: {
+        flex: 1,
+        height: 8,
+        backgroundColor: COLORS.surface,
+        borderRadius: 4,
+        overflow: 'hidden',
+        marginHorizontal: 8,
+    },
+    mlProbBar: {
+        height: '100%',
+        borderRadius: 4,
+    },
+    mlProbValue: {
+        width: 36,
+        fontSize: 12,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        textAlign: 'right',
+    },
+    mlHybridRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mlHybridText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        marginLeft: 6,
+    },
+    mlHybridBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+    mlUnavailable: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+    },
+    mlUnavailableText: {
+        fontSize: 13,
+        color: COLORS.textMuted,
+        marginLeft: 8,
+    },
+});
+
+export default ScanResultScreen;

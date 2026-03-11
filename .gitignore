@@ -1,0 +1,34 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+
+# React Native
+.metro-health-check*
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/app/.cxx/
+android/app/build/
+android/build/
+android/local.properties
+*.iml
+.idea/
+
+# iOS
+ios/Pods/
+ios/build/
+
+# Bundle
+*.jsbundle
+*.jsbundle.map
+
+# Misc
+.env
+*.log
