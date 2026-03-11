@@ -105,34 +105,12 @@ class BehaviorModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             }
             result.putArray("riskBreakdown", breakdown)
             
-            // === HYBRID ML ANALYSIS ===
-            try {
-                val features = emberExtractor.extractFeatures(packageName)
-                val mlResult = mlClassifier.predict(features)
-                
-                result.putString("mlPrediction", mlResult.predictedLabel)
-                result.putDouble("mlConfidence", mlResult.confidence.toDouble())
-                result.putInt("mlClassIndex", mlResult.predictedClass)
-                
-                // ML probabilities map
-                val probMap: WritableMap = Arguments.createMap()
-                OnnxMalwareClassifier.CLASS_LABELS.forEachIndexed { idx, label ->
-                    probMap.putDouble(label, mlResult.probabilities[idx].toDouble())
-                }
-                result.putMap("mlProbabilities", probMap)
-                
-                // Compute hybrid risk level
-                val heuristicRisk = analysis["risk"] as String
-                val hybridRisk = computeHybridRisk(heuristicRisk, mlResult)
-                result.putString("hybridRisk", hybridRisk)
-                result.putBoolean("mlAvailable", true)
-            } catch (mlError: Exception) {
-                // ML failed — still return heuristic results
-                result.putString("mlPrediction", "Unknown")
-                result.putDouble("mlConfidence", 0.0)
-                result.putString("hybridRisk", analysis["risk"] as String)
-                result.putBoolean("mlAvailable", false)
-            }
+            // ML analysis is deferred — only runs when user selects a specific app
+            // via getMLAnalysis(). This avoids reading raw APK bytes for every app on load.
+            result.putString("mlPrediction", "Pending")
+            result.putDouble("mlConfidence", 0.0)
+            result.putString("hybridRisk", analysis["risk"] as String)
+            result.putBoolean("mlAvailable", false)
             
             promise.resolve(result)
         } catch (e: Exception) {
