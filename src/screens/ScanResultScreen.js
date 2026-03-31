@@ -493,29 +493,6 @@ const ScanResultScreen = ({ route, navigation }) => {
 
                         <View style={styles.divider} />
 
-                        {/* Risk Score */}
-                        <View style={styles.infoRow}>
-                            <View style={styles.infoIconContainer}>
-                                <MaterialCommunityIcons name="speedometer" size={20} color={getRiskColor(result.risk)} />
-                            </View>
-                            <View style={styles.infoContent}>
-                                <Text style={styles.infoLabel}>Risk Score</Text>
-                                <View style={styles.riskScoreContainer}>
-                                    <Text style={[styles.infoValue, { color: getRiskColor(result.risk) }]}>
-                                        {result.riskScore !== undefined ? result.riskScore : '—'}/100
-                                    </Text>
-                                    <View style={styles.riskScoreBar}>
-                                        <View style={[styles.riskScoreFill, {
-                                            width: `${result.riskScore || 0}%`,
-                                            backgroundColor: getRiskColor(result.risk)
-                                        }]} />
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
-                        <View style={styles.divider} />
-
                         {/* Permissions Summary */}
                         <View style={styles.infoRow}>
                             <View style={styles.infoIconContainer}>

@@ -11,15 +11,18 @@ yarn-debug.log*
 # React Native
 .metro-health-check*
 
-# Android
-android/.gradle/
-android/.kotlin/
-android/app/.cxx/
-android/app/build/
-android/build/
-android/local.properties
+# Android (all nested android directories)
+**/.gradle/
+**/.kotlin/
+**/.cxx/
+**/app/build/
+**/build/
+**/local.properties
 *.iml
 .idea/
+
+# APK files
+*.apk
 
 # iOS
 ios/Pods/
@@ -32,3 +35,6 @@ ios/build/
 # Misc
 .env
 *.log
+*.pdf
+build_log.txt
+metro_log.txt

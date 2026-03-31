@@ -68,6 +68,8 @@ class ThreatScoringEngine(private val context: Context) {
         
         // Trusted package prefixes (OEMs and popular verified publishers)
         private val TRUSTED_PREFIXES = listOf(
+            // Self (Hexlab app)
+            "com.tempandroidsandbox",
             // OEM/System
             "com.google.",
             "com.android.",
