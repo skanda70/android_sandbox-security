@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../utils/constants';
-import { getRecentFiles, scanFile, analyzeApp, getDetailedPermissions, getMalwareAnalysis, getInstalledApps } from '../services/api';
+import { getRecentFiles, scanFile, analyzeApp, getDetailedPermissions, getMalwareAnalysis, getMLAnalysis, getInstalledApps } from '../services/api';
 import FileCard from '../components/FileCard';
 import ScanButton from '../components/ScanButton';
 import AppSelectionModal from '../components/AppSelectionModal';
@@ -64,19 +64,18 @@ const HomeScreen = ({ navigation }) => {
         }
     };
 
-    // Handle app selection from modal - perform deep scan
+    // Handle app selection from modal - perform deep scan with ML
     const handleAppSelect = async (app) => {
         setModalVisible(false);
         setScanning(true);
         try {
-            // Perform deep scan: basic analysis + detailed permissions + malware analysis
-            const [basicResult, permissions, malwareAnalysis] = await Promise.all([
+            // Perform deep scan: basic analysis + ML analysis
+            const [basicResult, mlResult] = await Promise.all([
                 analyzeApp(app.packageName),
-                getDetailedPermissions(app.packageName),
-                getMalwareAnalysis(app.packageName),
+                getMLAnalysis(app.packageName),
             ]);
 
-            // Navigate to scan result screen with comprehensive deep scan data
+            // Navigate to scan result screen with ML-focused data
             navigation.navigate('ScanResult', {
                 file: {
                     fileName: app.fileName || app.appName,
@@ -91,10 +90,23 @@ const HomeScreen = ({ navigation }) => {
                     confidence: basicResult.confidence,
                     action: basicResult.action,
                     packageName: app.packageName,
-                    // Deep scan data
-                    permissions: permissions,
-                    malwareAnalysis: malwareAnalysis,
+                    // ML data
+                    mlPrediction: mlResult.prediction,
+                    mlConfidence: mlResult.confidence,
+                    mlProbabilities: mlResult.probabilities,
+                    mlRiskLevel: mlResult.riskLevel,
+                    mlIsBenign: mlResult.isBenign,
+                    mlAvailable: true,
+                    // App info
+                    permissionCount: basicResult.permissionCount,
+                    highRiskPerms: basicResult.highRiskPerms,
+                    targetSdk: basicResult.targetSdk,
+                    isFromPlayStore: basicResult.isFromPlayStore,
+                    isSideloaded: basicResult.isSideloaded,
+                    isTrusted: basicResult.isTrusted,
+                    appCategory: basicResult.appCategory,
                 },
+                scanMode: 'ml',
             });
         } catch (error) {
             console.error('Deep scan failed:', error);

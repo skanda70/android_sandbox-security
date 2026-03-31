@@ -32,6 +32,13 @@ ios/build/
 *.jsbundle
 *.jsbundle.map
 
+# Yarn (project uses npm)
+yarn.lock
+
+# Ruby/iOS (Android-only project)
+Gemfile
+Gemfile.lock
+
 # Misc
 .env
 *.log
