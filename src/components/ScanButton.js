@@ -16,7 +16,7 @@ import { COLORS } from '../utils/constants';
  * @param {boolean} props.disabled - Disable button
  * @param {Object} props.style - Optional additional styles
  */
-const ScanButton = ({ onPress, label = 'Start Scan', loading = false, disabled = false, style }) => {
+const ScanButton = ({ onPress, label = 'Start Scan', loading = false, loadingText = 'Loading the model...', disabled = false, style }) => {
     return (
         <TouchableOpacity
             style={[styles.container, style]}
@@ -31,7 +31,10 @@ const ScanButton = ({ onPress, label = 'Start Scan', loading = false, disabled =
                 style={styles.gradient}
             >
                 {loading ? (
-                    <ActivityIndicator color={COLORS.textPrimary} size="small" />
+                    <View style={styles.loadingRow}>
+                        <ActivityIndicator color={COLORS.textPrimary} size="small" />
+                        <Text style={styles.loadingText}>{loadingText}</Text>
+                    </View>
                 ) : (
                     <>
                         <View style={styles.iconContainer}>
@@ -64,6 +67,17 @@ const styles = StyleSheet.create({
     },
     iconContainer: {
         marginRight: 10,
+    },
+    loadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginLeft: 10,
+        letterSpacing: 0.3,
     },
     label: {
         fontSize: 18,

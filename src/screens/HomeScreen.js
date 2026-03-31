@@ -162,6 +162,7 @@ const HomeScreen = ({ navigation }) => {
                     <ScanButton
                         onPress={handleScan}
                         loading={scanning}
+                        loadingText="Loading the model..."
                         label="Start Security Scan"
                     />
                     <Text style={styles.scanHint}>
